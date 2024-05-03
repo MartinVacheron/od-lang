@@ -1,0 +1,12 @@
+[workspace]
+resolver = "1"
+
+members = [
+    "crates/*"
+]
+
+
+[workspace.dependencies]
+thiserror = "1.0"
+colored = "2.0"
+clap = { version = "4.5.4", features = ["derive"] }

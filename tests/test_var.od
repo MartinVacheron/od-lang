@@ -1,0 +1,137 @@
+test declare_var {
+	// Null var
+	var a
+	assert_eq(a, null)
+
+	// Value var
+	var b = 5
+	assert_eq(b, 5)
+
+	// Constant
+	const c = 56
+	assert_eq(c, 56)
+
+	// Negative and ecimal
+	var d = -8
+	assert_eq(d, -8)
+
+	var e = -6.
+	assert_eq(e, -6.)
+
+	var f = -89.04
+	assert_eq(f, -89.04)
+}
+
+test decl_var_with_expr {
+	var a = (50. / 2 - 5) % 2
+	assert_eq(a, 0)
+
+	var b = a + 6 * 2
+	assert_eq(b, 12)
+}
+
+test multiple_assign {
+	var x
+	var y
+	var z
+
+	x = y = z = 82.
+
+	assert_eq(x, 82.)
+	assert_eq(y, 82.)
+	assert_eq(z, 82.)
+}
+
+test compound_assign {
+	var x = 5
+	x += 1
+	assert_eq(x, 6)
+	x -= 2
+	assert_eq(x, 4)
+	x *= 0.5
+	assert_eq(x, 2.)
+	x /= 2
+	assert_eq(x, 1)
+	x %= 1
+	assert_eq(x, 0)
+}
+
+test comma_declaration {
+	var x, y, z
+	assert_eq(x, null)
+	assert_eq(y, null)
+	assert_eq(z, null)
+
+	var a, b, c = -98.
+	assert_eq(a, -98.)
+	assert_eq(b, -98.)
+	assert_eq(c, -98.)
+
+	var d, e, f = 56, -6, 71.
+	assert_eq(d, 56)
+	assert_eq(e, -6)
+	assert_eq(f, 71.)
+
+	const g, h, i, j = 67.
+	assert_eq(g, 67.)
+	assert_eq(h, 67.)
+	assert_eq(i, 67.)
+	assert_eq(j, 67.)
+
+	const k, l, m, n = 67., 567., -87.45, 99
+	assert_eq(k, 67.)
+	assert_eq(l, 567)
+	assert_eq(m, -87.45)
+	assert_eq(n, 99)
+}
+
+test var_typed {
+	var aa: any
+	assert_eq(aa, null)
+
+	var bb: any = [1]
+	assert_eq(bb, [1])
+
+	// Int
+	var a: int = 4
+	assert_eq(a, 4)
+
+	// Real
+	const b: real = 6.
+	assert_eq(b, 6.)
+
+	var x, y, z: int = 7
+	assert_eq(x, 7)
+	assert_eq(y, 7)
+	assert_eq(z, 7)
+	
+	const r, f, d: real = 56., 78, 222
+	assert_eq(r, 56)
+	assert_eq(f, 78)
+	assert_eq(d, 222)
+
+	// Difference int and real
+	// If g is castable to int, ok (in fact, it's h which is casted)
+	var g: real = 7.
+	var h: int  = 7
+	assert_eq(g, h)
+
+	// Implicit cast from int to real
+	var i: real = g + h
+	assert_eq(i, 14)
+	assert_eq(i, 14.)
+}
+
+// Typed var struct
+struct Vec2 {
+	var x: int
+}
+
+test typed_var_struct {
+	// We expect no error while assigning
+	var a: vec2 = new Vec2()
+	var b: vec2 = new Vec2()
+	var c = new Vec2()
+	a = b
+	a = c
+}

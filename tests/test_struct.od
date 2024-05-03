@@ -1,0 +1,198 @@
+struct NoConstructor {
+	var x, y
+}
+
+test no_construct {
+	var a = new NoConstructor()
+	assert_eq(a.x, null)
+	assert_eq(a.y, null)
+}
+
+
+struct ConstructorSameName {
+	var x, y
+
+	new(x, y)
+}
+
+test constructor_var_same_name {
+	var a = new ConstructorSameName(-56., 98)
+	assert_eq(a.x, -56.)
+	assert_eq(a.y, 98)
+}
+
+
+struct ConstructorSameNameWrongOrder {
+	var x, y
+
+	new(y, x)
+}
+
+test constructor_var_wrong_order {
+	var a = new ConstructorSameNameWrongOrder(-998.2, 10.2068)
+	assert_eq(a.x, 10.2068)
+	assert_eq(a.y, -998.2)
+}
+
+
+struct ConstructorNotAllVar {
+	var x, y
+
+	new(y)
+}
+
+test constructor_not_all_var {
+	var a = new ConstructorNotAllVar(22.32)
+	assert_eq(a.x, null)
+	assert_eq(a.y, 22.32)
+}
+
+
+struct ConstructorAdditionalVar {
+	var x, y
+
+	new(x, y, z)
+}
+
+test constructor_additional_var {
+	var a = new ConstructorAdditionalVar(-12., 20.5, 84.)
+	assert_eq(a.x, -12.)
+	assert_eq(a.y, 20.5)
+}
+
+struct ConstructorConstVar {
+	var x, y
+	const g
+
+	new(g)
+}
+
+test constructor_with_const {
+	var a = new ConstructorConstVar(5)
+	assert_eq(a.g, 5)
+}
+
+
+struct ConstructorWithBody {
+	var x, y
+	const g
+
+	new(x, y, g) {
+		self.x *= 10
+	}
+}
+
+test constructor_with_body {
+	var a = new ConstructorWithBody(1., 2, 3)
+	assert_eq(a.x, 10)
+}
+
+struct WithMethods {
+	var x, y
+
+	new(x, y)
+
+	fn get_times_10() { return self.x * 10 }
+
+	fn increase_y(amount) {
+		self.y += amount
+	}
+}
+
+test struct_with_method {
+	var a = new WithMethods(52., -42)
+	assert_eq(a.get_times_10(), 520)
+
+	a.increase_y(12)
+	assert_eq(a.y, -30)
+}
+
+struct WithFnInMethods {
+	var x, y
+
+	new(x, y)
+
+	fn increase_y(amount) {
+		fn add_8(x) {
+			return x + 8
+		}
+
+		self.y += add_8(amount)
+	}
+}
+
+test struct_with_method_in_method {
+	var a = new WithFnInMethods(52., -42)
+	a.increase_y(12)
+	assert_eq(a.y, -22)
+}
+
+
+struct WithMethodsCall {
+	var x, y
+
+	new(x, y)
+
+	fn increase_y(amount) {
+		self.y += self.add_8(amount)
+	}
+
+	fn add_8(x) {
+		return x + 8
+	}
+}
+
+test struct_with_method_call {
+	var a = new WithMethodsCall(-10., 20.)
+	a.increase_y(12)
+	assert_eq(a.y, 40)
+}
+
+
+// Members
+struct Vec2 {
+	var x, y
+
+	new(x, y)
+
+	fn get_sum() { return self.x + self.y }
+
+	fn set_x(x) { self.x = x }
+}
+
+struct StructMemberInStruct {
+	var pos
+	const radius
+
+	new(pos, radius)
+
+	fn get_pos_x() { return self.pos.x }
+}
+
+struct System {
+	var planet
+	var id
+
+	new(planet, id)
+
+	fn get_planet_pos() {
+		return self.planet.pos
+	}
+}
+
+test struct_sub_member {
+	var pos = new Vec2(10., 5)
+	var mars = new StructMemberInStruct(pos, 80.)
+	var sys = new System(mars, 8)
+
+	assert_eq(sys.planet.pos.x, 10.)
+	assert_eq(sys.planet.pos.get_sum(), 15.)
+	sys.planet.pos.set_x(65)
+	assert_eq(sys.planet.pos.x, 65.)
+	assert_eq(sys.planet.radius, 80.)
+	assert_eq(sys.planet.get_pos_x(), 65.)
+	
+	pos.x = 65
+	// assert_eq(sys.get_planet_pos().x, pos.x)
+	// assert_eq(sys.get_planet_pos().y, pos.y)
+}

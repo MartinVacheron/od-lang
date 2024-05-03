@@ -1,0 +1,106 @@
+//-----------
+//  Classic
+//-----------
+
+// Helpers
+fn add(x, y) {
+   return x + y
+}
+
+fn sub_add(x, y) {
+	var z = x + y
+
+	return z / 2
+}
+
+fn nested_add(x, y) {
+	fn div(x) { return x / 5 }
+
+	return div(x + y) 
+}
+
+fn outter_call(x) {
+	return add(x, 51)
+}
+
+// Tests
+test function_call {
+	assert_eq(add(4, 6), 10)
+	assert_eq(sub_add(4, 6), 5)
+	assert_eq(nested_add(4, 6), 2)
+	assert_eq(outter_call(9), 60)
+}
+
+
+//---------
+//  Typed
+//---------
+
+// Helpers
+fn add_no(x, y) {
+	return x + y
+}
+
+fn add_rany(x: any, y: any) -> any {
+	return x + y
+}
+
+fn add_t(x: int, y) {
+	return x + y
+}
+
+fn add_any(x: int, y: any) {
+	return x + y
+}
+
+fn add_2t(x: int, y: real) {
+	return x + y
+}
+
+fn add_2t_r(x: int, y: real) -> int {
+	return x + y
+}
+
+fn add_2t_rf(x: int, y: int) -> real {
+	return x + y
+}
+
+
+// Tests
+test any_var_type {
+	var a: any = add(1, 2)
+	var b: int = add(2, 3)
+	var c: real = add(3, 4)
+	assert_eq(a, 3)
+	assert_eq(b, 5)
+	assert_eq(c, 7)
+}
+
+test any_return {
+	var a: any = add_rany(1, 2)
+	var b: int = add_rany(2, 3)
+	var c: real = add_rany(3, 4)
+	assert_eq(a, 3)
+	assert_eq(b, 5)
+	assert_eq(c, 7)
+}
+
+test arg_type {
+	var a: any = add_t(1, 2)
+	var b: any = add_any(10, 2)
+	var c: any = add_2t(-1, 2.)
+	assert_eq(a, 3)
+	assert_eq(b, 12)
+	assert_eq(c, 1.)
+}
+
+test return_type {
+	var a: any = add_2t_r(1, 2)
+	var b: real = add_2t_r(1, 2)  // int dosen't work here
+	var c: any = add_2t_rf(10, 2)
+	var e: real = add_2t_rf(10, 2)
+	assert_eq(a, 3)
+	assert_eq(b, 3)
+	assert_eq(c, 12)
+	assert_eq(e, 12)
+}
