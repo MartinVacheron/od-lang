@@ -163,7 +163,8 @@ impl<'a> Env<'a> {
                         && var_type != VarType::Func
             {
                 assign_value.try_cast_to(&var_type).map_err(|e| EnvError::WrongValType(var.clone(), e.to_string()))?
-            } else {
+            }
+            else {
                 assign_value
             };
 

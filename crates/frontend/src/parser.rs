@@ -22,9 +22,27 @@ pub enum VarType {
     Int,
     Real,
     Bool,
-    Array,
+    Array(Box<VarType>),
     Struct(String),
-    Func
+    Func,
+    Void
+}
+
+impl VarType {
+    // Default value for basic types. Null, fn and structure are themselves
+    // their default value
+    pub fn get_default_value(&self) -> ExpressionKind {
+        match self {
+            VarType::Any => ExpressionKind::Identifier { symbol: "null".into() },
+            VarType::Int => ExpressionKind::IntLiteral { value: 0 },
+            VarType::Real => ExpressionKind::RealLiteral { value: 0. },
+            VarType::Bool => ExpressionKind::Identifier { symbol: "false".into() } ,
+            VarType::Array(_) => ExpressionKind::ArrayLiteral { values: vec![] },
+            VarType::Struct(name) => ExpressionKind::EmptyStructLiteral { name: name.into() },
+            VarType::Func => panic!("Error, cannot have type here"),
+            VarType::Void => panic!("Error, cannot have type for void"),
+        }
+    }
 }
 
 impl Display for VarType {
@@ -34,9 +52,10 @@ impl Display for VarType {
             VarType::Int => write!(f, "int"),
             VarType::Real => write!(f, "real"),
             VarType::Bool => write!(f, "bool"),
-            VarType::Array => write!(f, "array"),
+            VarType::Array(u) => write!(f, "array {}", *u),
             VarType::Struct(name) =>  write!(f, "{}", name),
             VarType::Func =>  write!(f, "function"),
+            VarType::Void =>  write!(f, "void"),
         }
     }
 }
@@ -331,30 +350,54 @@ impl Parser {
 
     // Check if there is a type after a specific token.
     // Can be used for:  x: int with ':' token  or  fn(a, b) -> int  with '->' token
-    fn parse_type_after_token(&mut self, token: TokenKind) -> Result<VarType, ParserError> {
+    fn parse_type_after_token(&mut self, token: TokenKind) -> Result<Option<VarType>, ParserError> {
         if self.at().kind == token {
             // If there is
-                self.eat()?;
+            self.eat()?;
 
-                // And we are at a type definition, we get it
-                let var_type = match self.at().kind {
-                    TokenKind::Any => Ok(VarType::Any),
-                    TokenKind::Int => Ok(VarType::Int),
-                    TokenKind::Real => Ok(VarType::Real),
-                    TokenKind::Bool => Ok(VarType::Bool),
-                    TokenKind::Identifier => Ok(VarType::Struct(self.at().value.clone())),
-                    _ => { return Err(ParserError::ExpectedType(self.eat()?.value)) }
-                };
-                
-                // We eat the type
-                self.eat()?;
+            // And we are at a type definition, we get it
+            let var_type = self.parse_type()?;
 
-                var_type
-            
+            // We eat the type if we didnt get an array
+            // Array type parsing manages itself
+            if !matches!(var_type, VarType::Array(..)) {
+                self.eat()?;
+            }
+
+            Ok(Some(var_type))
         } else {
             // If not, any type
-            Ok(VarType::Any)
+            Ok(None)
         }
+    }
+
+    fn parse_type(&mut self) -> Result<VarType, ParserError> {
+        let var_type = match self.at().kind {
+            TokenKind::Any => VarType::Any,
+            TokenKind::Int => VarType::Int,
+            TokenKind::Real => VarType::Real,
+            TokenKind::Bool => VarType::Bool,
+            TokenKind::Void => VarType::Void,
+            TokenKind::Identifier => VarType::Struct(self.at().value.clone()),
+            TokenKind::OpenBracket => self.parse_array_type()?,
+            _ => return Err(ParserError::ExpectedType(self.at().value.clone()))
+        };
+
+        Ok(var_type)
+    }
+
+    // Parse syntaxes like:   [], []int, []real, ...
+    fn parse_array_type(&mut self) -> Result<VarType, ParserError> {
+        // We eat the opening '['
+        self.expect_token(TokenKind::OpenBracket)?;
+        self.expect_token(TokenKind::CloseBracket).map_err(|_| ParserError::ArrayTypeNoCloseBracket)?;
+
+        let underlying = match self.parse_type() {
+            Ok(t) => { self.eat()?; t },
+            Err(_) => VarType::Any
+        };
+        
+        Ok(VarType::Array(Box::new(underlying)))
     }
 
     fn skip_end_lines(&mut self) {
@@ -457,8 +500,8 @@ mod tests {
              x /= 2
              x %= 2",
         );
-        let _ = lexer.tokenize(code);
-        let _ = parser.build_ast(lexer.tokens);
+        lexer.tokenize(code).unwrap();
+        parser.build_ast(lexer.tokens).unwrap();
 
         assert_eq!(
             parser.ast_nodes,
@@ -466,9 +509,9 @@ mod tests {
                 ASTNode::new(
                     ASTNodeKind::Statement(StatementKind::VarDeclaration {
                         name: "x".into(),
-                        value: Some(ExpressionKind::IntLiteral { value: 2 }),
+                        value: ExpressionKind::IntLiteral { value: 2 },
                         constant: false,
-                        var_type: VarType::Any
+                        var_type: VarType::Int
                     }),
                     0
                 ),

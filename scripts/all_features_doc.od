@@ -162,7 +162,7 @@ const a, b, c = 1, 2, 3
 
 /// Types
 
-// Var without types are by default of 'any' type
+// Var without types and value are by default of 'any' type
 var a  <=>  var a: any
 
 // Single var declaration

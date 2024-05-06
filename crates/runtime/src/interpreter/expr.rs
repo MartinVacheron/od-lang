@@ -132,8 +132,6 @@ impl Interpreter {
             } => {
                 let mut props = parse_mem_call(&*m1, &*property)?;
 
-                println!("Props chain: {:?}", props);
-
                 // We get the struct variable
                 let structure = env
                     .lookup_var(props.first().unwrap())
@@ -295,6 +293,7 @@ impl Interpreter {
                     _ => Err(InterpreterError::NonArrayIndexing),
                 }
             }
+            ExpressionKind::EmptyStructLiteral { name } => todo!()
         }
     }
 

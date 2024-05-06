@@ -18,12 +18,7 @@ impl Interpreter {
                 constant,
                 var_type,
             } => {
-                // We check if there is a declaration value associated to the var name
-                let declaration_value = if let Some(val) = value {
-                    self.evaluate(val, env)?
-                } else {
-                    RuntimeVal::Null
-                };
+                let declaration_value = self.evaluate(value, env)?;
 
                 // We declare the variable
                 env.declare_var(name, declaration_value, constant, var_type)
@@ -276,7 +271,7 @@ mod tests {
 
         let var_decl = ASTNodeKind::Statement(StatementKind::VarDeclaration {
             name: var_name.clone(),
-            value: Some(ExpressionKind::RealLiteral { value: 45. }),
+            value: ExpressionKind::RealLiteral { value: 45. },
             constant: false,
             var_type: VarType::Any,
         });
@@ -299,7 +294,7 @@ mod tests {
 
         let var_decl = ASTNodeKind::Statement(StatementKind::VarDeclaration {
             name: var_name.clone(),
-            value: Some(ExpressionKind::RealLiteral { value: 45. }),
+            value: ExpressionKind::RealLiteral { value: 45. },
             constant: false,
             var_type: VarType::Any,
         });
@@ -318,13 +313,13 @@ mod tests {
 
         let var_decl = ASTNodeKind::Statement(StatementKind::VarDeclaration {
             name: var_name.clone(),
-            value: Some(ExpressionKind::RealLiteral { value: 45. }),
+            value: ExpressionKind::RealLiteral { value: 45. },
             constant: false,
             var_type: VarType::Any,
         });
         let var_decl2 = ASTNodeKind::Statement(StatementKind::VarDeclaration {
             name: var_name2.clone(),
-            value: Some(ExpressionKind::RealLiteral { value: 20. }),
+            value: ExpressionKind::RealLiteral { value: 20. },
             constant: false,
             var_type: VarType::Any,
         });
@@ -376,7 +371,7 @@ mod tests {
 
         let var_decl = ASTNodeKind::Statement(StatementKind::VarDeclaration {
             name: var_name.clone(),
-            value: Some(ExpressionKind::RealLiteral { value: 45. }),
+            value: ExpressionKind::RealLiteral { value: 45. },
             constant: true,
             var_type: VarType::Any,
         });

@@ -62,6 +62,16 @@ impl Parser {
                         // We get the member type
                         let var_type = self.parse_type_after_token(TokenKind::Colon)?;
 
+                        if let Some(VarType::Void) = var_type {
+                            return Err(ParserError::VoidTypeForVar)
+                        }
+
+                        // We extract the type and put any if there is no type
+                        let var_type = match var_type {
+                            Some(t) => t,
+                            None => VarType::Any
+                        };
+
                         members.push((
                             membre_name,
                             var_type,

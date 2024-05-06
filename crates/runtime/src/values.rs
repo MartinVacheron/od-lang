@@ -160,14 +160,14 @@ pub enum AssignType {
 }
 
 impl RuntimeVal {
-    // TODO: 
+    // TODO: Add sub type to array
     pub fn get_type(&self) -> VarType {
         match self {
             RuntimeVal::Null => VarType::Any,
             RuntimeVal::Int(_) => VarType::Int,
             RuntimeVal::Real(_) => VarType::Real,
             RuntimeVal::Bool(_) => VarType::Bool,
-            RuntimeVal::Array(_) => VarType::Array,
+            RuntimeVal::Array(_) => VarType::Array(Box::new(VarType::Any)),
             RuntimeVal::Structure { prototype, .. } => VarType::Struct(prototype.name.clone()),
             RuntimeVal::Function { return_type, .. } => return_type.clone(),
             _ => VarType::Any

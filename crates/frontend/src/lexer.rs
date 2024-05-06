@@ -63,6 +63,7 @@ pub enum TokenKind {
     Int,
     Real,
     Bool,
+    Void,
 
     // File
     EndLine,
@@ -112,6 +113,7 @@ impl<'a> Lexer<'a> {
         self.reserved_keywords.insert("int", Token::new_int());
         self.reserved_keywords.insert("real", Token::new_real());
         self.reserved_keywords.insert("bool", Token::new_bool());
+        self.reserved_keywords.insert("void", Token::new_void());
         self.reserved_keywords.insert("for", Token::new_for());
         self.reserved_keywords.insert("in", Token::new_in());
     }
@@ -538,6 +540,13 @@ impl Token {
         Token {
             kind: TokenKind::Bool,
             value: "bool".to_string(),
+            line: 0,
+        }
+    }
+    pub fn new_void() -> Token {
+        Token {
+            kind: TokenKind::Void,
+            value: "void".to_string(),
             line: 0,
         }
     }

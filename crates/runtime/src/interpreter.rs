@@ -22,7 +22,6 @@ impl Interpreter {
 
         for n in nodes {
             result = Ok(self.interpret_node(n.node, env).map_err(|e| e.to_glob_err(n.line))?);
-            // result = Ok(n.node.interpret(env).map_err(|e| e.to_glob_err(n.line))?);
         }
 
         result

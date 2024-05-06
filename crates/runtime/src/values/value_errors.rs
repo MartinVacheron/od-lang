@@ -48,14 +48,14 @@ pub enum ValueError {
     #[error("arguments number -{0}- of function: -{1}- should be of type: -{2}-, found -{3}-.")]
     WrongArgType(i64, String, String, String),
     
-    #[error("trying to cast type -{0}- to type -{1}-, operation not allowed.")]
+    #[error("{}: trying to cast type -{0}- to type -{1}-, operation not allowed.", "Error".red().bold())]
     NotAllowedCast(String, String),
 
     // Arrays
     #[error("both of array slice indexes must be positive, found: {0}.")]
     ArrSliceIdxNeg(i64),
 
-    #[error("index {0} is out of bound of array which is of size: -{1}-")]
+    #[error("{}: index {0} is out of bound of array which is of size: -{1}-", "Error".red().bold())]
     ArrayOverIndexing(isize, usize),
 
     #[error("can't pop last element of empty array")]

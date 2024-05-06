@@ -35,8 +35,14 @@ There are different ways to declare variables:
     #[error("Expected variable name after 'var' and 'const' keyword, found: {0}.")]
     ExpectedVarNameAfterKw(String),
 
-    #[error("Constant variable {0} must be initialized with a value.")]
+    #[error("{} constant variable {0} has no initialize value.", "Error".red().bold())]
     ConstVarNoVal(String),
+
+    #[error("{} while parsing variable declaration. Return type dosen't match the value given. Expected -{0}-, found -{1}-", "Error".red().bold())]
+    WrongVarType(String, String),
+
+    #[error("{} while parsing variable declaration. Variable can't have 'void' type, only function returning nothing can declare this type", "Error".red().bold())]
+    VoidTypeForVar,
 
     // Structures declaration
     #[error("{} while parsing structure declaration. Expected structure name after {} keyword.", "Error".red().bold(), "struct".cyan())]
@@ -121,6 +127,9 @@ Expected -{0}-, found -{1}-", "Error".red().bold())]
     #[error("{} while parsing member function call. This is not possible to call the constructor of a structure", "Error".red().bold())]
     ConstructorCall,
 
+    #[error("{} while parsing '{0}' function declaration. Function signature has a return type but no return statement were defined.", "Error".red().bold())]
+    ReturnTypeWithoutReturn(String),
+
     // Member expressions
     #[error("{} while parsing member. Expected identifier after dot '.' operator.", "Error".red().bold())]
     MissingIdentifierAfterDot,
@@ -184,6 +193,10 @@ Syntaxes are:
 
     #[error("{} while parsing test declaration. No return statement allowed", "Error".red().bold())]
     ReturnInTest,
+
+    // Types
+    #[error("{} while parsing array type. Missing closing bracket, syntaxe should be '[]'", "Error".red().bold())]
+    ArrayTypeNoCloseBracket,
 }
 
 // Implement global trait for final error

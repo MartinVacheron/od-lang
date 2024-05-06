@@ -35,7 +35,7 @@ pub enum StatementKind {
     VarDeclaration {
         name: String,
         // Option is for declaration without value
-        value: Option<ExpressionKind>,
+        value: ExpressionKind,
         constant: bool,
         var_type: VarType,
     },
@@ -84,6 +84,11 @@ pub enum ExpressionKind {
     },
     ArrayLiteral {
         values: Vec<ExpressionKind>,
+    },
+    // Use to convey the information about a typed variable uninitialized
+    // like: var a: Planet
+    EmptyStructLiteral {
+        name: String,
     },
     // Box needed to avoid recursion. We don't use ref + lifetime because not usefull.
     // I tried but working with boxes seems to be easier and more appropriate when
@@ -159,6 +164,21 @@ impl ExpressionKind {
             }
             ExpressionKind::Identifier { symbol, .. } => (None, Some(symbol.to_string())),
             _ => (None, None),
+        }
+    }
+
+    // Get type of Expr
+    pub(super) fn get_expr_type(&self) -> VarType {
+        match self {
+            // We allow implicit cast from int to real
+            ExpressionKind::IntLiteral { .. } => VarType::Int,
+            ExpressionKind::RealLiteral { .. } => VarType::Real,
+            ExpressionKind::Identifier { symbol } => match symbol.as_str() {
+                "true" | "false" => VarType::Bool,
+                _ => VarType::Any
+            },
+            ExpressionKind::ArrayLiteral { .. } => VarType::Array(Box::new(VarType::Any)),
+            _ => VarType::Any
         }
     }
 }
