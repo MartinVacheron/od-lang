@@ -23,7 +23,7 @@ impl Interpreter {
             },
             ExpressionKind::Identifier { symbol } => Ok(env
                 .lookup_var(&symbol)
-                .map_err(|e| InterpreterError::Evaluation(format!("{e}")))?
+                .map_err(|e| InterpreterError::Evaluation(e.to_string()))?
                 .clone()),
             ExpressionKind::ArrayLiteral { values } => {
                 let mut val: Vec<RuntimeVal> = vec![];
@@ -54,7 +54,7 @@ impl Interpreter {
 
                 Ok(lhs
                     .calculate(rhs, &operator)
-                    .map_err(|e| InterpreterError::Evaluation(format!("{e}")))?)
+                    .map_err(|e| InterpreterError::Evaluation(e.to_string()))?)
             }
             // TODO: Test
             ExpressionKind::VarAssignment { assigne, value } => {
@@ -146,7 +146,7 @@ impl Interpreter {
 
                 // We get the value of the member call
                 Ok(structure.get_sub_member(&mut props).map_err(|e| {
-                    InterpreterError::WrongStructMemberCall(struct_name, format!("{e}"))
+                    InterpreterError::WrongStructMemberCall(struct_name, e.to_string())
                 })?)
             }
             ExpressionKind::FunctionCall {
