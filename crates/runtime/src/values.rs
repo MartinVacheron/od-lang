@@ -27,6 +27,9 @@ pub enum RuntimeVal {
         prototype: Rc<StructPrototype>,
         members: Rc<RefCell<HashMap<String, RuntimeVal>>>,
     },
+    PlaceholderStruct {
+        prototype: Rc<StructPrototype>,
+    },
     NativeFunction {
         func: Rc<dyn Fn(&[RuntimeVal]) -> Result<RuntimeVal, NativeFnError>>,
         return_type: VarType,
@@ -47,7 +50,17 @@ impl Debug for RuntimeVal {
             RuntimeVal::Real(nb) => write!(f, "{}", nb),
             RuntimeVal::Array(arr) => write!(f, "{:?}", arr),
             RuntimeVal::Bool(b) => write!(f, "{}", b),
-            RuntimeVal::Structure { members, .. } => write!(f, "Members: {:?}", members),
+            RuntimeVal::Structure { prototype, members } => write!(
+                f,
+                "Structure of type: {} \nMembers: {:?}",
+                prototype.name,
+                members
+            ),
+            RuntimeVal::PlaceholderStruct { prototype } => write!(
+                f,
+                "Placeholder structure for type: {}",
+                prototype.name
+            ),
             RuntimeVal::NativeFunction { .. } => write!(f, "native function"),
             RuntimeVal::Function { .. } => write!(f, "function"),
         }
@@ -112,6 +125,9 @@ impl Display for RuntimeVal {
 
                 Ok(())
             },
+            RuntimeVal::PlaceholderStruct { prototype } => {
+                write!(f, "\nStructure: {}, uninitialized\n", prototype.name)
+            },
             RuntimeVal::NativeFunction { .. } => write!(f, "native function"),
             RuntimeVal::Function { .. } => write!(f, "function"),
         }
@@ -169,8 +185,9 @@ impl RuntimeVal {
             RuntimeVal::Bool(_) => VarType::Bool,
             RuntimeVal::Array(_) => VarType::Array(Box::new(VarType::Any)),
             RuntimeVal::Structure { prototype, .. } => VarType::Struct(prototype.name.clone()),
+            RuntimeVal::PlaceholderStruct { prototype } => VarType::Struct(prototype.name.clone()),
             RuntimeVal::Function { return_type, .. } => return_type.clone(),
-            _ => VarType::Any
+            RuntimeVal::NativeFunction { return_type, .. } => return_type.clone(),
         }
     }
 
@@ -179,12 +196,13 @@ impl RuntimeVal {
         self.get_type() == other_type.get_type()
     }
 
-    pub fn try_cast_to(self, other_type: &VarType) -> Result<Self, ValueError> {
+    // Allow to try to cast between types
+    pub fn try_cast_to(self, to_type: &VarType) -> Result<Self, ValueError> {
         // All possible casts
-        match (self, other_type) {
+        match (self, to_type) {
             // Int can be cast to real
             (RuntimeVal::Int(i), VarType::Real) => Ok(RuntimeVal::Real(i as f64)),
-            // Int can accept every thing
+            // Any can accept every thing
             (v @ _, VarType::Any) => Ok(v),
             // Null value isn't castable
             // Real can't be casted to anything else

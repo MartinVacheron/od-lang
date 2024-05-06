@@ -39,7 +39,7 @@ pub enum EnvError {
     #[error("Member {0} has been declared twice in structure: {1}")]
     AlreadyDeclaredMemberInStruct(String, String),
 
-    #[error("Undeclared structure: {0}")]
+    #[error("{} undeclared structure: {0}", "Error".red().bold())]
     UndeclaredStruct(String),
 
     #[error("{} during self creation: {0}", "Error".red().bold())]
@@ -162,6 +162,7 @@ impl<'a> Env<'a> {
                         && assign_value != RuntimeVal::Null
                         && var_type != VarType::Func
             {
+                println!("Var type: {:?}, assign value: {:?}, assign value type: {:?}", var_type, assign_value, assign_value.get_type());
                 assign_value.try_cast_to(&var_type).map_err(|e| EnvError::WrongValType(var.clone(), e.to_string()))?
             }
             else {

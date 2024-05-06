@@ -1,3 +1,7 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
+
 use super::InterpreterError;
 use crate::frontend::ast::{ASTNodeKind, ArrayIndexing, ExpressionKind};
 use crate::{
@@ -293,7 +297,11 @@ impl Interpreter {
                     _ => Err(InterpreterError::NonArrayIndexing),
                 }
             }
-            ExpressionKind::EmptyStructLiteral { name } => todo!()
+            ExpressionKind::EmptyStructLiteral { name } => {
+                let proto = env.lookup_struct_prototype(&name)?;
+
+                Ok(RuntimeVal::PlaceholderStruct { prototype: proto.clone() })
+            }
         }
     }
 
@@ -324,7 +332,7 @@ impl Interpreter {
                 arg_val.try_cast_to(&arg_type)
                                 .map_err(|e| InterpreterError::FnArgWrongType(
                                     arg_name.clone(), e.to_string()
-                            ))?
+                                ))?
             } else {
                 arg_val
             };
