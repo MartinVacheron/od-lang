@@ -1,0 +1,205 @@
+// This is a comment
+
+// Structure prototype declaration
+struct Planet {
+    // Members can be const or not
+    var pos
+    const radius
+
+    // Constructor
+	// Can be empty
+	// All constant members must be declared as argument because it will be
+	// initialiazed only once here.
+    // Arguments of constrcutor with the same name as members will be automatically 
+	// assigned to them.
+	// Can have a function body
+	// Additional variables can be passed to perform custom init
+    // Cannot have a return statement in constructor
+
+	// Following those rules:
+	// Not allowed because member radius is constant
+    new()
+	// Minimum constructor possible in this example
+	new(radius)
+	// Perfectly possible constructor avoiding boilerplate code
+	new(pos, radius)
+	// Is equivalent of
+	new(pos, radius) {
+		self.pos = pos
+		self.radius = radius
+	}
+	// With a function body
+	new(pos, radius, option, value) {
+		var test = self.pos / option + value
+		echo(test)
+	}
+	// Can't return a value from a constructor
+	new(radius) {
+		return true
+	}
+
+    // Member functions
+	// They can accept any number of arguments
+    // They can return value
+	// They can also declare their own functions
+	// They can access members and member functions
+	// Can't call the constructor
+    fn update(dt, val) {
+		// Member access
+		self.pos = self.pos + dt
+		// Function member access
+		self.echo_pos()
+
+		// Own functions
+		fn add_1(x) {
+			return x + 1
+		}
+		// Call custom functions
+		echo(add_1(self.radius))
+
+		// Return
+		return self.radius + val
+    }
+
+	fn echo_pos() {
+		echo(self.pos)
+	}
+}
+
+// Constants must be initialized to a value
+const g = 9.81
+
+// Variables declaration. Non const variables can be uninitialized
+var x = 5
+var y = 4.
+var z // z = null
+
+// Variable initialization can be an expression
+var toto = g % x+z
+
+// Possible assignement
+x = y = z = 6
+
+// Compound assignment
+var a = 1
+a += 2
+a -= 2
+a *= 2
+a /= 2
+a %= 2
+
+// Negative numbers
+var b = -8
+var b = -8.
+
+// Operation with null
+// Any null in an expression resukt in an error
+var a
+var b = a + 5 // Error, using uninitialized variable
+
+// Structure creation
+var pos = new vec2(10, 50)
+var earth = new Planet(pos, 5)
+var mars = new Planet(earth, cos(1.5))
+
+// Impossible operation between struct and var
+var impo = earth + 5
+
+// Member evaluation
+echo(earth.radius)
+echo(earth.pos.x)
+echo(mars.pos.pos.x)
+
+// Function declaration. The syntax is:
+// The return is optional
+fn add(x, y) {
+   var z = x + y
+   echo(z)
+
+   return z
+}
+
+// Arrays creation
+var a = [1, 2, 3]
+// Can be empty
+var a = []
+// Can be initialized with expressions
+var a = [add(1, 2), 5, pos.x]
+// Array access
+echo(a[1])
+// Negative access
+echo(a[-2])
+// Array assignment
+a[2] = 10 * g
+// Arrays as members
+var p = new vec2(0, [1, 2, 3])
+// Array member access
+echo(p.y[-1])
+
+// Array slice
+// From start to nth element
+var b = a[:n]
+// From nth element
+var b = a[n:]
+// From the nth to the mth. In this case, they have to be positive
+var b = a[n:m]
+// WARNING: can't do slice assignment
+var b[1:] = 5
+
+// Comma declaration
+// Null variables
+var a, b, c 
+// All variables having the same value
+var a, b, c = 8
+// All variables having their own value
+var a, b, c = 5*2, vec.x, 0
+// Constant must have a value
+// Either the same for all
+const a, b, c = 5
+// One value per variable
+const a, b, c = 1, 2, 3
+
+
+/// Types
+
+// Var without types are by default of 'any' type
+var a  <=>  var a: any
+
+// Single var declaration
+var a: int = 0
+// Typed variable can be uninitialized
+var a: int
+// Same for constant
+const b: real = 56
+// Comma declaration
+var a, b, c: int = 6  // All var are int and have value 6
+const c, v, b: real = 56., 67, 45
+
+// Functions
+fn add(x: int, y: int) {
+	return x + y
+}
+// Calling like add(5., 6) throws an error
+fn add(x: int, y: int) -> int {
+	return x + y
+}
+
+// Implicit casts happen from int to real but not the inverse
+// So function:
+fn add(x: real, y: real) { return x + y }
+
+var a = add(5, 6.) // -> Ok
+var a: real = add(1, 2) // cast implicit
+
+// Pas possible
+fn add(a: int, b: real) -> int {
+	// cela devient (real) a + b  qui retourne un real
+	return a + b
+}
+
+// Arithmetic
+var a: int = 5 + 6 // -> Ok
+var a: int = 5. + 6 // -> Ko because it is going to cast the int to real and thus the result is real
+var a: real = 5. + 6 // -> Ok
+
+// In struct 

@@ -1,0 +1,47 @@
+enum VarType {
+    Bool,
+    Nb,
+    Str,
+    Struct(String)
+}
+
+
+// Stmt
+struct VarDecl {
+    var name: str
+    var value: Expr
+    var constant: bool
+    var type: VarType
+}
+
+
+struct StructDecl {
+    var name: str
+    var members: [](str, VarType, bool)
+    var construct_args: []str
+    var construct_body: []ASTNode
+}
+
+
+// Expr
+struct IdentLit {
+    var value: str
+}
+
+
+struct ArrayLit {
+    var value: []Expr
+}
+
+
+struct BinOp {
+    var right: Expr
+    var operator: str
+    var left: Expr
+}
+
+
+type Stmt = VarDecl | StructDecl
+type Expr = IdentLit | ArrayLit | BinOp
+
+type ASTNode = Stmt | Expr

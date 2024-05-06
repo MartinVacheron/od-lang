@@ -1,0 +1,84 @@
+enum TokenKind {
+    Ident,
+    Number,
+    String,
+    Colon,
+    Dot
+}
+
+struct Token {
+    var value: str
+    var type: TokenKind
+    var pos: vec2i
+}
+
+
+priv fn skip_char(char: str) -> bool {
+    return case char {
+        ' ' or '\n' or '\r' -> true,
+        _ -> false
+    }
+}
+
+priv fn tokenize_non_symbol
+
+
+fn tokenize(code: str) -> []Token? {
+    var tokens: []Token
+    var cur_line = 0
+    var iter = code.iter()
+
+    // Until error 
+    while iter.next() @ c {
+        if skip_char(c) {
+            if c == "\n" {
+                cur_line += 1
+            }
+
+            continue
+        }
+
+        case c {
+            ":" -> tokens.push(Token(c, TokenKind::Colon, cur_line))
+            "." -> tokens.push(Token(c, TokenKind::Dot, cur_line))
+            _ -> {
+                if c.is_alpha() {
+                    tokens.push(Token(tokenize_ident(&iter), TokenKind::Ident, cur_line))
+
+                } elif c.is_digit() {
+                    tokens.push(Token(tokenize_nb(&iter), TokenKind::Number, cur_line))
+                } else {
+                    return err("Unrecognized token: %s", c)
+                }
+            }
+        }
+    }
+
+    return tokens
+}
+
+priv fn tokenize_ident(iter: &iter) -> str {
+    var ident: str = c
+
+    while iter.next() @ c2 {
+        case c2.is_alpha() {
+            true -> ident += c2,
+            false -> break
+        }
+    }
+
+    return ident
+}
+
+priv fn tokenize_nb(iter: &iter) -> str {
+    var nb: str = c
+
+    while iter.next() @ c2 {
+        case c2.is_alpha() {
+            true -> nb += c2,
+            false -> break
+        }
+    }
+
+    return nb
+}

@@ -1,0 +1,66 @@
+enum VarType {
+    Int,
+    Real,
+    Array
+}
+
+// Stmt
+struct VarDecl {
+    var name: str
+    var value: f64
+    var type: VarType
+}
+
+struct StructMember {
+    var name: str
+    var constant: bool
+}
+
+struct StructDecl {
+    var name: str
+    var members: []StructMember
+    var constructor_bode: []ASTNode
+}
+
+enum Stmt {
+    use VarDecl,
+    use StructMember,
+    use StructDecl
+}
+
+// Expr
+struct IntLit {
+    var value: int
+}
+
+struct ArrayLit {
+    var value: []Expr
+}
+
+enum Expr {
+    use IntLit,
+    use ArrayLit
+}
+
+// ASTNode
+enum ASTNode {
+    use Stmt,
+    use Expr
+}
+
+
+fn interp(nodes: []ASTNode) -> void? {
+    for node in nodes {
+        case node {
+            Stmt -> <s> try interp_stmt(s),
+            IntLit -> <i> try interp_int(i),
+        }
+    }
+}
+
+fn interp_stmt(s: Stmt) -> void? {
+    case s {
+        VarDecl -> <v> echo(v.name),
+        _ -> panic("Not suppose to be here")
+    }
+}

@@ -1,0 +1,37 @@
+use ast:ASTNode
+use value:RuntimeVal
+
+
+fn interpret(nodes: []ASTNode, env: &Env) -> RuntimeVal? {
+    var iter = nodes.iter()
+    var res
+
+    while iter.next() @ node {
+        res = try evaluate(node, env)
+    }
+
+    return res
+}
+
+priv fn evaluate(node: ASTNode, env: &Env) -> any? {
+    return case type(node) {
+        StructDecl -> try interp_struct_decl(node, env),
+        BinOp -> try interp_binop(node, env)
+    }
+}
+
+priv fn interp_struct_decl(node: StructDecl, env: &Env) -> void? {
+    try env.declare_struct(node)
+}
+
+priv fn interp_binop(node: BinOp, env: &Env) -> RuntimeVal? {
+    var right = try evaluate(node.right, env)
+    var left = try evaluate(node.left, env)
+
+    return case node.operator {
+        "+" -> right + left,
+        "-" -> right - left,
+        "*" -> right * left,
+        "/" -> right / left
+    }
+}

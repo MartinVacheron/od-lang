@@ -1,0 +1,10 @@
+struct Struct {
+    var proto: Prototype
+    var members: {str, RuntimeVal}
+}
+
+struct Array {
+    var values: []any
+}
+
+type RuntimeVal = Struct or Array

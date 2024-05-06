@@ -1,0 +1,42 @@
+// Compute least mean square
+
+// Python
+import numpy as np
+
+a, b = 5, -15
+
+x = np.linspace(0, 100, 100)
+y = a * x + b
+
+y_noisy = y
+
+for i in range(len(y)):
+	y_noisy[i] += np.random.random(1)
+
+
+def sum_xy(x, y):
+	res = 0	
+	for i in range(len(x)):
+		res += x[i] * y[i]
+	return res
+
+def sum_x_sq(x):
+	res = 0	
+	for i in range(len(x)):
+		res += x[i] ** 2
+	return res
+
+all_x = x.sum()
+all_x_sq = sum_x_sq(x)
+all_xy = sum_xy(x, y_noisy)
+
+
+// ODScript
+const a, b = 5, -15
+const x = #[0->100, 100]
+const y = #{x map a*x + b}
+const y_noisy = #{(y, #gauss[0->1.5, 100]) map x + y} // Just: y + #gauss[0->1.5, 100]
+
+const all_x = #{x fall +x}
+const all_x_sq = #{x fall +(pow(x, 2))}
+const all_xy = #{(x, y_noisy) fall +(x*y)}

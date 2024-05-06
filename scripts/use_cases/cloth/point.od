@@ -1,0 +1,12 @@
+struct Point {
+    var pos: vec2
+    var pinned: bool
+
+    new(..)
+
+    fn move(amount: vec2) {
+        if not self.pinned {
+            self.pos += amount
+        }
+    }
+}

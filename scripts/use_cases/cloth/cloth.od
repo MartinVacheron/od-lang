@@ -1,0 +1,88 @@
+use point::Point
+use stick::Stick
+
+
+struct Cloth {
+    var dim: vec2i
+    var spacing: vec2i
+
+    const max_stick_stretch: real
+
+    priv var points: []Point
+    priv var sticks: []Stick
+
+    new(..) {
+        for i in dim.x {
+            for j in dim.y {
+                var pos = vec2(j * self.spacing.x, i * self.spacing.y)
+
+                self.points.push(Point(pos))
+
+                // If not first point on line
+                if j > 0 {
+                    self.sticks.push(
+                        Stick(&self.points[-1], &self.points[-2], self.max_stick_stretch)
+                    )
+                }
+
+                if i > 0 {
+                    self.sticks.push(Stick(
+                        &self.points[-1],
+                        &self.points[i * self.dim.x - self.dim.y],
+                        self.max_stick_stretch
+                    ))
+                }
+            }
+        }
+    }
+
+    fn update(forces: vec2) {
+        self.update_points(forces)
+        self.update_sticks(forces)
+    }
+    
+    priv fn update_points(forces: vec2) {
+        // Iterator... not ref, copy
+        for p in &self.points {
+            *p.move(forces)
+        }
+
+        self.points.self_map(<p> *p.move(forces))
+    }
+
+    priv fn update_sticks(forces: vec2) {
+        self.sticks.self_map(<p> *p.constrain())
+    }
+
+    fn draw() {
+        for p in self.points {
+            draw_circle(p, 5)
+        }
+
+        for s in self.sticks.filter(<s> not s.broken) {
+            draw_line(s.p1.pos, s.p2.pos, 2.)
+        }
+    }
+}
+
+fn calculate_PFD(time: real, g: vec2) -> vec2 {
+    return vec2(5, -4 * time) + g
+}
+
+fn main() {
+    const GRAVITY: vec2 = vec2(0, -9.81)
+    const STEP: real = 0.001
+    const T_MAX: real = 20.
+    const STICK_MAX_STRETCH: real = 1.6
+
+    var t = 0.
+    var cloth: Cloth = Cloth(vec2i(10, 5), vec2i(20), STICK_MAX_STRETCH)
+
+    while t < T_MAX {
+        var forces = calculate_PFD(t, GRAVITY)
+        cloth.update(forces)
+        cloth.draw()
+
+        t += STEP
+    }
+}

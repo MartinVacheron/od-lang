@@ -1,0 +1,30 @@
+struct vec2 {
+	var x, yRrT
+	const pos.planet = 5
+
+	new(pos: int, l, l)  {
+        self.x *= 10.
+    }
+
+	fn add(x, j, hrcrfr) {}
+}
+
+fn mult(a, b: real) -> int {
+
+	return a * b
+}
+
+var a = 23
+var A: int = 23
+const b = 3
+const BRT
+var a = true 
+
+a.toto.titi(e)
+self.azre
+
+fn add(x: int, y: int) -> int {
+	return x + y
+}
+
+if a { for c in "abc" }

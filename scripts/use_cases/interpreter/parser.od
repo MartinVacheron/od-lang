@@ -1,0 +1,60 @@
+use lexer:(Token, TokenKind)
+use ast:(ASTNode, VarDecl, Expr)
+
+
+fn parse(tokens: []Token) -> []ASTNode? {
+    var iter = tokens.iter()
+    var nodes: []ASTNode
+
+    while iter.next() @ tk {
+        case tk.type {
+            TokenKind::Ident -> {
+                if tk.value == "var" or tk.value == "const" {
+                    nodes.push(parse_var_decl(&iter))
+                } else {
+                    nodes.push(IdentLit(tk.value))
+                }
+            }
+        }
+    }
+
+    return nodes
+}
+
+priv fn parse_var_decl(tokens: &iter) -> VarDecl? {
+    var kw = try eat()
+    var constant = (kw.value == "const") ? true : false
+
+    var ident = try expect(TokenKind.Ident, tokens)
+    var value: Expr = none
+
+    if tokens.at().kind == TokenKind::Equals {
+        try eat()
+
+        value = try expect(TokenKind.Number, tokens)
+    }
+
+    var type: VarType = none
+
+    if tokens.at().kind == TokenKind::Colon {
+        try eat()
+
+        tk_type = try expect(TokenKind.Ident, tokens)
+
+        case tk_type.value {
+            "int" -> type = VarType::Nb,
+            _ @ custom -> type = VarType::Struct(custom)
+        }
+    }
+
+    return VarDecl(ident, value, constant, type)
+}
+
+priv fn eat(tokens: &iter) -> Token? {
+    return try tokens.next()
+           then err("Empty token buffer used")
+}
+
+priv fn expect(kind: TokenKind, tokens: &iter) -> Token? {
+    return (tokens.at().kind == kind) ? try eat() : err("Expected token kind: %s", kind)
+}

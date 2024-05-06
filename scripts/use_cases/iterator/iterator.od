@@ -1,0 +1,66 @@
+role Iterator {
+    var index: int = 0
+
+    redef fn next() -> any?
+
+    fn map(func: fn) -> []any {
+        var res: []
+
+        loop {
+            var elem = next()
+            
+            if not elem is err {
+                res.push(func(elem))
+            } else {
+                return res
+            }
+        }
+    }
+
+    fn filter(func: fn -> bool) -> []any {
+        var res: []
+
+        loop {
+            var elem = next()
+
+            if not elem is err {
+                if func(elem) {
+                    res.push(func(elem))
+                }
+            } else {
+                return res
+            }
+        }
+    }
+}
+
+struct Storage {
+    var ids: []int
+    var names: []string
+}
+
+
+def Iterator for Storage {
+    fn next() -> (int, string)? {
+        if .index < self.ids.len() and .index < self.names.len() {
+            var id = self.ids[.index] if .index < self.ids.len() else self.ids[-1]
+            var name = self.names[.index] if .index < self.names.len() else self.names[-1]
+
+            .index += 1
+
+            return (id, name)
+        } else {
+            .index = 0
+
+            return err("")
+        }
+    }
+}
+
+fn main() {
+    var storages: []Storage
+
+    for s in storages {
+        echo(s)
+    }
+}

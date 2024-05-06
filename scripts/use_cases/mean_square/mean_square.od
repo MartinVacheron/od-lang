@@ -1,0 +1,24 @@
+var time: []real = [0:50:.1]
+var a, b: real = 5.3, -7
+
+var y_value: []real = time.map(<t> a*t + b)
+
+var mean, sigma: real = y_value.mean(), .4
+var y_noisy: []real = y_value.map(<y> y + gauss(mean, sigma))
+
+
+var all_xy: real = time.zip(y_value).map(<x, y> x * y).sum()
+var all_xy_noisy: real = time.zip(y_noisy).map(<x, y> x * y).sum()
+
+
+var mat: [][]real = [
+    [time.sum(),   all_xy],
+    [all_xy_noisy, y_noisy.sum()]
+]
+
+struct Matrix {
+    var elems: [][]any
+    var dim: vec2i
+
+    new()
+}

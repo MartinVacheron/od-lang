@@ -1,0 +1,286 @@
+{
+	"name": "od",
+	"scopeName": "source.od",
+	"patterns": [
+		{ "include": "#statement" },
+		{ "include": "#base_expression" }
+	],
+	"repository": {
+		"statement": {
+			"patterns": [
+				{ "include": "#base_expression" },
+				{ "include": "#assignment_operator" },
+				{ "include": "#builtin_classes" },
+				{ "include": "#any_variable" },
+				{ "include": "#any_property" }
+			]
+		},
+		"base_expression": {
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#strings" },
+				{ "include": "#logic_operator" },
+				{ "include": "#compare_operator" },
+				{ "include": "#arithmetic_operator" },
+				{ "include": "#struct_declaration" },
+				{ "include": "#enum_declaration" },
+				{ "include": "#variable_declaration" },
+				{ "include": "#function_declaration" },
+				{ "include": "#statement_keyword" },
+				{ "include": "#function_call" },
+				{ "include": "#self" },
+				{ "include": "#test" },
+				{ "include": "#fn" },
+				{ "include": "#letter" },
+				{ "include": "#numbers" }
+			]
+		},
+		"statement_keyword": {
+			"patterns": [
+				{
+					"name": "keyword.control.flow.od",
+					"match": "\\b(if|else|while|loop|for|in|return|def|case)\\b"
+				},
+				{
+					"name": "storage.type.class.od",
+					"match": "\\b(?<!.)(struct|enum)\\b"
+				},
+				{
+					"name": "keyword.var.od",
+					"match": "\\b(var|const|priv)\\b"
+				}
+			]
+		},
+		"assignment_operator": {
+			"match": "=",
+			"name": "keyword.operator.assignment.od"
+		},
+		"logic_operator": {
+			"match": "\\b(and|or|not)\\b",
+			"name": "keyword.operator.wordlike.od"
+		},
+		"self": {
+			"match": "\\bself\\b",
+			"name": "variable.language.self.od"
+		},
+		"test": {
+			"match": "\\b(test|try|then)\\b",
+			"name": "storage.type.function.od"
+		},
+		"fn": {
+			"match": "\\b(fn|new)\\b",
+			"name": "storage.type.function.od"
+		},
+		"compare_operator": {
+			"match": "<=|>=|==|<|>|!=",
+			"name": "keyword.operator.comparison.od"
+		},
+		"arithmetic_operator": {
+			"comment": "The space after / is because comment would be colorized",
+			"match": "\\+=|-=|\\*=|/=|%=|\\*|/|%|\\+|-|!|\\?",
+			"name": "keyword.operator.arithmetic.od"
+		},
+		"letter": {
+			"match": "\\b(?:true|false|null)\\b",
+			"name": "constant.language.od"
+		},
+		"numbers": {
+			"patterns": [
+				{
+					"match": "[-]?([0-9][0-9_]+\\.[0-9_]*(e[\\-\\+]?[0-9_]+)?)",
+					"name": "constant.numeric.float.od"
+				},
+				{
+					"match": "[-]?(\\.[0-9][0-9_]*(e[\\-\\+]?[0-9_]+)?)",
+					"name": "constant.numeric.float.od"
+				},
+				{
+					"match": "[-]?([0-9][0-9_]*e[\\-\\+]?\\[0-9_])",
+					"name": "constant.numeric.float.od"
+				},
+				{
+					"match": "[-]?[0-9][0-9_]*",
+					"name": "constant.numeric.integer.od"
+				}
+			]
+		},
+		"any_variable": {
+			"match": "\\b(?<![@\\$#%])([A-Za-z_]\\w*)\\b(?![(])",
+			"name": "variable.other.od"
+		},
+		"any_property": {
+			"match": "\\b(\\.)\\s*(?<![@\\$#%])(?:([A-Z_][A-Z_0-9]*)|([A-Za-z_]\\w*))\\b(?![(])",
+			"captures": {
+				"1": { "name": "punctuation.accessor.gdscript" },
+				"2": { "name": "constant.language.gdscript" },
+				"3": { "name": "" }
+			}
+		},
+		"variable_declaration": {
+			"name": "meta.variable.od",
+			"begin": "\\b(?:(var)|(const))\\s+(?:(\\b[A-Z_][A-Z_0-9]*\\b)|([A-Za-z_]\\w*))\\s*",
+			"beginCaptures": {
+				"1": { "name": "keyword.var.od" },
+				"2": { "name": "keyword.var.od" },
+				"3": { "name": "constant.language.od" },
+				"4": { "name": "variable.other.od" }
+			},
+			"end": "$|;",
+			"patterns": [
+				{
+					"match": "(:)\\s*([a-zA-Z_]\\w*)?",
+					"captures": {
+						"1": { "name": "punctuation.separator.annotation.od" },
+						"2": { "name": "entity.name.type.class.od" }
+					}
+				},
+				{ "include": "#base_expression" },
+				{ "include": "#any_variable" }
+			]
+		},
+		"struct_declaration": {
+			"match": "(?<=^struct)\\s+([a-zA-Z_]\\w*)\\s*(?={)",
+			"captures": {
+				"1": { "name": "entity.name.type.class.od" },
+				"2": { "name": "class.other.od" }
+			}
+		},
+		"enum_declaration": {
+			"match": "(?<=^enum)\\s+([a-zA-Z_]\\w*)\\s*(?={)",
+			"captures": {
+				"1": { "name": "entity.name.type.class.od" },
+				"2": { "name": "class.other.od" }
+			}
+		},
+		"function_declaration": {
+			"name": "meta.function.od",
+			"begin": "(?x) \\s*\n (fn) \\s+\n ([a-zA-Z_]\\w*) \\s*\n (?=\\()",
+			"beginCaptures": {
+				"1": { "name": "keyword.language.od storage.type.function.od" },
+				"2": { "name": "entity.name.function.od" }
+			},
+			"end": "(:|(?=[#'\"\\n]))",
+			"end2": "(\\s*(\\-\\>)\\s*(void\\w*)|([a-zA-Z_]\\w*)\\s*\\{)",
+			"endCaptures2": {
+				"1": { "name": "punctuation.separator.annotation.result.od" },
+				"2": { "name": "keyword.language.null.od" },
+				"3": { "name": "entity.name.type.class.builtin.od markup.italic" }
+			},
+			"patterns": [
+				{ "include": "#fn_arguments" },
+				{ "include": "#builtin_classes" },
+				{ "include": "#base_expression" }
+			]
+		},
+		"fn_arguments": {
+			"name": "meta.function.parameters.od",
+			"begin": "(\\()",
+			"end": "(\\))",
+			"beginCaptures": { "1": { "name": "punctuation.definition.parameters.begin.od" } },
+			"endCaptures": { "1": { "name": "punctuation.definition.parameters.end.od" } },
+			"patterns": [
+				{ "include": "#annotated_parameter" },
+				{
+					"match": "(?x)\n  ([a-zA-Z_]\\w*)\n    \\s* (?: (,) | (?=[)#\\n=]))\n",
+					"captures": {
+						"1": { "name": "variable.parameter.function.language.od" },
+						"2": { "name": "punctuation.separator.parameters.od" }
+					}
+				},
+				{ "include": "#comment" }
+			]
+		},
+		"annotated_parameter": {
+			"begin": "(?x)\n \\s* ([a-zA-Z_]\\w*) \\s* (:)\\s* ([a-zA-Z_]\\w*)? \n",
+			"beginCaptures": {
+				"1": { "name": "variable.parameter.function.language.od" },
+				"2": { "name": "punctuation.separator.annotation.od" },
+				"3": { "name": "entity.name.type.class.builtin.od" }
+			},
+			"end": "(,)|(?=\\))",
+			"endCaptures": { "1": { "name": "punctuation.separator.parameters.od" } },
+			"patterns": [
+				{ "include": "#base_expression" },
+				{
+					"name": "keyword.operator.assignment.od",
+					"match": "=(?!=)"
+				}
+			]
+		},
+		"builtin_classes": {
+			"match": "(?<![^.]\\.|:)\\b(int|real|bool|any|void)\\b",
+			"name": "entity.name.type.class.builtin.od"
+		},
+		"strings": {
+			"name": "string.quoted.double.od",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.od",
+					"match": "\\\\."
+				}
+			]
+		},
+		"comment": {
+			"match": "(//).*$\\n?",
+			"name": "comment.line.number-sign.od",
+			"captures": { "1": { "name": "punctuation.definition.comment.number-sign.od" } }
+		},
+		"function_call": {
+			"name": "meta.function-call.od",
+			"comment": "Regular function call of the type \"name(args)\"",
+			"begin": "(?x)\n  \\b(?=\n    ([a-zA-Z_]\\w*) \\s* (\\()\n  )\n",
+			"beginCaptures": { "2": { "name": "punctuation.definition.arguments.begin.od" } },
+			"end": "(\\))",
+			"endCaptures": { "1": { "name": "punctuation.definition.arguments.end.od" } },
+			"patterns": [
+				{ "include": "#function_name" },
+				{ "include": "#function_arguments" }
+			]
+		},
+		"function_name": {
+			"patterns": [
+				{ "include": "#builtin_classes" },
+				{
+					"comment": "Some color schemas support meta.function-call.generic scope",
+					"name": "support.function.any-method.od",
+					"match": "(?x)\n  \\b ([a-zA-Z_]\\w*) \\b\n"
+				}
+			]
+		},
+		"function_arguments": {
+			"begin": "(\\()",
+			"end": "(?=\\))(?!\\)\\s*\\()",
+			"beginCaptures": { "1": { "name": "punctuation.definition.arguments.begin.od" } },
+			"contentName": "meta.function.parameters.od",
+			"patterns": [
+				{
+					"name": "punctuation.separator.arguments.od",
+					"match": "(,)"
+				},
+				{
+					"match": "\\b([a-zA-Z_]\\w*)\\s*(=)(?!=)",
+					"captures": {
+						"1": { "name": "variable.parameter.function-call.od" },
+						"2": { "name": "keyword.operator.assignment.od" }
+					}
+				},
+				{
+					"name": "keyword.operator.assignment.od",
+					"match": "=(?!=)"
+				},
+				{ "include": "#base_expression" },
+				{
+					"match": "\\s*(\\))\\s*(\\()",
+					"captures": {
+						"1": { "name": "punctuation.definition.arguments.end.od" },
+						"2": { "name": "punctuation.definition.arguments.begin.od" }
+					}
+				},
+				{ "include": "#letter" },
+				{ "include": "#any_variable" }
+			]
+		}
+	}
+}

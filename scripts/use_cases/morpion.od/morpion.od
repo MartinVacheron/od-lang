@@ -1,0 +1,189 @@
+enum Marker {
+    Circle,
+    Cross
+}
+
+enum CellState {
+    Empty,
+    Played(Marker)
+}
+
+def Echo for CellState {
+    fn as_str() -> str {
+        case self {
+            Empty -> " ",
+            Played::Circle -> "o",
+            Played::Cross -> "x"
+        }
+    }
+}
+
+
+struct Grid {
+    var dim: int
+
+    priv var cells: []CellState
+    priv var dim_sq: int
+
+    fn new(..) {
+        self.dim_sq = self.dim ** 2
+        self.cells = [CellState::Empty; self.dim_sq]
+    }
+
+    fn play_at(col: int, row: int, marker: Marker) -> void? {
+        var index: int = row * self.dim + col
+
+        case self.cells[index] {
+            Empty -> self.cells[index] = Played(marker),
+            _ -> return err("Cell is not empty!")
+        }
+    }
+
+    fn check_win() -> bool {
+        // Do stuff...
+    }
+
+    fn print_grid() {
+        for i in self.dim_sq {
+            // Print space at beginning of line
+            if i % self.dim - 1 == 0 {
+                echo(" ")
+            }
+
+            echo(self.cells[i])
+
+            if i % 2 != 0 {
+                echo(" | ")
+            }
+
+            if i % self.dim - 1 == 0 and i > 0 {
+                echo("-----------")
+            }
+        }
+    }
+}
+
+struct Player {
+    const name: str
+    const marker: Marker
+
+    var nb_wins: int = 0
+
+    var new(..)
+}
+
+struct Game {
+    var p1: Player
+    var p2: Player
+    var grid: Grid
+
+    var nb_games: int = 1
+
+    priv var nb_turn: int = 0
+
+    var new(..)
+
+    fn start_game() {
+        echo("Game %s begins!", self.nb_games)
+    }
+
+    fn game_loop() {
+        loop {
+            self.start_game()
+
+            while not self.grid.check_win() {
+                self.play_turn()
+            }
+
+            self.end_game()
+
+            if not self.play_again() {
+                break
+            }
+        }
+    }
+
+    priv fn play_turn() -> void {
+        for p in [self.p1, self.p2] {
+            loop {
+                var input = input("%s, enter a colon and a row", p.name)
+                
+                var col, row = try self.process_input()
+                               else continue
+                               then <e> echo(*e)
+
+                self.grid.play_at(col, row, p.marker)
+                
+                break
+            }
+        }
+    }
+
+    priv fn process_input(input: str) -> (int, int)? {
+        var input_split = input.split(" ")
+
+        if input_split != 2 {
+            return err("Must enter two arguments")
+        }
+
+        var input_int: []int = try input_split.map(<i> int(i))
+                               then <e> *e = err("Input must be an integer")
+
+        return input_int.as_tupple()
+    }
+
+    priv fn end_game(p: Player) {
+        echo("%s wins!", p.name)
+        echo("Current score:")
+        echo("%s: %d      %s: %d", self.p1.name, self.p1.nb_wins, self.p2.name, self.p2.nb_wins)
+
+        self.nb_games += 1
+    }
+
+    priv play_again() -> bool {
+        loop {
+            var again = input("Play again? 0: no, 1: yes")
+
+            var again_int = try int(again)
+                            else continue
+                            then <_> echo("Enter an integer")
+
+            return case again_int {
+                0 -> false,
+                1 -> true
+                _ -> echo("Enter either 0 or 1")
+            }
+        }
+    }
+}
+
+fn get_player() -> Player {
+    var name = input("Player %d, enter your name: ", i)
+
+    var marker = loop {
+        var marker_str = input("Choose your marker:  0 -> Cross, 1 -> Circle")
+        
+        var marker_int = try int(marker_str)
+                         else continue
+                         then <_> echo("You must enter an integer")
+
+        case marker_int {
+            0 -> return Maker::Cross,
+            1 -> return Marker::Circle,
+            _ -> echo("You must enter either 0 or 1")
+        }
+    }
+
+    return Player(name, marker)
+}
+
+
+fn main() {
+    var p1 = get_player()
+    var p2 = get_player()
+
+    var game: Game = Game(p1, p2, Grid(3))
+
+    // Game loop
+    game.game_loop()
+}

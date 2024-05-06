@@ -1,0 +1,21 @@
+use lexer:.*
+use parser:*
+use interpreter:Interpreter
+
+
+fn main() {
+    var script_name = input("Give script path")
+    var file = try open(script_name, "r")
+
+    var code = file.read()
+
+    var lexer = lexer.Lexer()
+    var parser = Parser()
+    var interp = Interpreter()
+
+    var tokens = try lexer.lex(code)
+    var nodes = try parser.parse(tokens)
+    var res = try interp.interprete(nodes)
+
+    echo(res)
+}

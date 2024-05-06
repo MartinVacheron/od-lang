@@ -1,0 +1,54 @@
+fn affine(a: real, x: []real, b: real) -> []real {
+    return x.map(<v> a*v + b)
+}
+
+role Series {
+    bind var x: &[]real
+
+    redef fn transform() -> []real
+
+    fn sample(freq: int) -> []real {
+        var res: []real
+
+        for i in x.len() {
+            if i % freq == 0 {
+                res.push(x[i])
+            }
+        }
+
+        return res
+    }
+}
+
+
+struct Square {
+    var vertices: []vec2
+    var all_x_pts: []real
+    
+    new(vertices) {
+        for v in vertices {
+            self.all_x_pts.push(v.x)
+        }
+    }
+}
+
+def Series for Square {
+    .x = &self.all_x_pts
+
+    fn transform() -> []real {
+        return .x.map(<elem> elem * 10)
+    }
+}
+
+
+fn plot_data(data: def Series) {
+    var data_ech = data.sample()
+}
+
+fn main() {
+    var all_sq: []Square
+
+    for i in 10 {
+        all_sq.push(Square([vec2(1+i), vec2(5 + 2*i)]))
+    }
+}

@@ -1,0 +1,57 @@
+
+// Untyped version
+fn main() {
+    var f = open("res.txt", "w")  // f: file?
+
+    f.write("foo") // if f: file, no problem, if f: err, crash 
+}
+
+
+fn main() -> int? {
+    var f = try open("res.txt", "w") // f: file, main exit with err("Unable to pen file")
+
+    f.write("foo") // can't fail because f: file  for sure
+}
+
+
+// All syntaxes
+fn main() {
+    var s = "8a"
+
+    // Untyped
+    var nb = int(s) // Dosen't fail, actually can't fail but value is of type: int?
+    var a = nb + 5 // Panics
+
+
+    // Typed, instant return
+    var nb = try int(s)  // Fail, exits main function with error from 'int()'
+    var a = nb + 5       // Can't ever fail
+
+
+    // Typed, modify error return
+    var nb = try int(s)             // Fail, exits main function with error: 'error from int()' + 'custom msg'
+             then <e> *e.msg += "Retry with an integer"
+
+    var a = nb + 5       // Can't ever fail
+
+
+    // Typed, custom statement error return
+    var nb = try int(s)            // Fail, exits main function with error from 'int()' but print 'told you' before
+             then <_> {
+                if "a" in s {
+                    echo("Don't put an A!")
+                } else {
+                    echo("you dummy")
+                }
+             }
+
+    var a = nb + 5       // Can't ever fail
+
+
+    // Program dosen't quit, value used is 0 but prints the msg
+    var nb: int = try int(s)
+                  else 0
+                  then <e> echo(*e.msg + ". Defaut value set to 0")
+
+    var a = 5 + nb  // Can't ever fail
+}

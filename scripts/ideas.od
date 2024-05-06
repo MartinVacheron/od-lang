@@ -1,0 +1,201 @@
+/// Imports
+import utils
+
+
+
+
+/// Typed system
+
+// Return type
+fn add_1(x) -> real { return x + 1 }
+
+// Variables type
+//  - Variables typees doivent avoir une valeur
+//  - Const pareil
+var a: int = 0
+const b: real = 7.
+// Comma declaration acceptee
+var a, b, c: int = 0
+const a, b, c: int = 0
+// Regles
+// int + real = real
+// pas de cast implicit : var a: int = int + float
+var a: int = 5 + int(6.5)
+var a: int = 9.5 // Error
+var b: real = 1  // Ok sans .
+
+
+struct Planet {
+    var pos: vec2
+    var radius: real
+    var x, y, z: real // ?
+}
+
+
+/// Comma decl
+// Structs value
+var a, b, c = new Vec2()
+
+
+/// Iterators
+// Classic
+for elem in arr {
+    print(elem)
+}
+// Multiple. Must be the same amount of elem lhs and rhs of in
+// Elements must all be the same size
+for (elem, val) in (arr, other) {}
+for elem, val in arr, other {}
+// Copy or reference? Does it modify the value in place?
+for e in arr {
+    e += 1
+}
+
+
+/// Control flow
+// Classique conditions
+if ball1.position.y <= 0 {
+    simu.stop()
+} else if {
+
+} else {
+
+}
+// Composed
+if a == 1 or a == 3 {
+
+}
+// Or 
+if a == (1 or 2) {
+
+}
+
+
+/// Bindings
+// Idea 1
+simu.obj.TitleLabel.text = ball2.position
+// Idea 2
+get_object("TitleLabel").text = ball2.position
+
+// Bindings in code or editor
+bind init_angle as Slider("toto", [-180, 180])
+bind init_vel as Entry("vel")
+bind no_gravity as CheckBox("no gravity")
+
+
+
+/// Arrays
+// Linear space
+
+/// Generators
+// Linear generator: start -> finish, number of elem
+var gen = #[0->10, 5]
+// Full syntaxe
+var gen = #lin[0->10, 5]
+// Gaussian: mean -> ecart type, number of elem
+var gen = #gauss[1->0.5, 10]
+// Randu: mean -> half bande, nb of elem
+var gen = #randu[1->0.5, 10]
+// Extract values
+var arr = [gen]
+var arr = [#[0->10, 5]]
+var arr = [#gauss[0->10, 5]]
+// Or with a symbol?
+var arr = *gen
+var arr = *#randu[1->0.5, 10]  // Weird
+// Not at all?
+var arr = gen // Pas fan, on ne voit pas directement qu'on extrait
+
+// No #?
+var gen = lin[0->10, 90]
+// Extract
+var arr = *gen
+
+// Variable allowed
+var gen = lin[0->vec.x, nb_elem]
+
+// Smart generator. Accept un generateur preconstruit ou non 
+// et dezip tout seul ou un tableau
+var smart_gen = #{#[0->10, 5] where x % 2 == 0}
+var smart_gen = #{gen where x % 2 == 0}
+var smart_gen = #{gen map x + 1}
+var smart_gen = #{gen map x + 1 where x % 2 == 0}
+var arr = *smart_gen
+
+// With var
+var smart_gen = #{$a where x % 2 == 0}
+var arr = *smart_gen{gen}
+
+// Where should accept multiple conditions
+var smart_gen = #{gen where x % 2 == 0 and x > 5}
+// Map too
+var smart_gen = #{gen map x + 1, x / 2}
+
+// Accumulator
+var acc = #{gen fall +x}
+var acc = #{gen fall -x}
+var acc = #{gen fall *x}
+var acc = #{gen fall /x}
+var acc = #{gen fall %x}
+// Built-in
+var sum = #sum{gen} // or #sum{arr}
+// Double
+var sum = #sum{(gen, gen) fall +(x - y)}
+
+// Can have no bound but add a stop condition but only in smart generator
+// Otherwise infinity. To think more about that 
+var gen = #{#[0->?, 50] end len == 4}
+
+// Complete
+// Fall must always be the last
+var y_tot = #{
+    #[0->10, 100]
+    where x % 2 == 0 and x > 5
+    map x + 1, x / g
+    fall +x
+}
+
+
+// But... what's the difference with function?
+// It reduces a lot the code written
+fn lin(start, end, nb_elem) {
+    // Non functional example
+    return [start:end]
+}
+
+fn filter_odd(elem) {
+    var res = []
+
+    for e in elem {
+        if e % 2 == 0 {
+            res.push(e)
+        }
+    }
+
+    return res
+}
+
+fn filter_odd_add_1(elem) {
+    var filtered = filter_odd(elem)
+
+    for e in filtered {
+        e += 1
+    }
+
+    return filtered
+}
+
+// Allow user to define some
+#generator
+fn log(start, end, nb_elem) {
+    var res = []
+    var step = (end - start) / nb_elem
+
+    for i in nb_elem {
+        res.push(log(start + step))
+    }
+
+    return res
+}
+// Can call it
+var x_log = #log[0->500, 80]

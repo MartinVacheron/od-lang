@@ -1,0 +1,41 @@
+use point::Point
+
+
+struct Stick {
+    var p1: &Point
+    var p2: &Point
+    const max_stretch: real
+
+    var broken: bool = false
+
+    priv const init_len: real
+
+    new(..) {
+        self.init_len = self.get_length()
+    }
+
+    fn constrain() {
+        if self.broken {
+            return
+        }
+
+        var cur_len = self.get_length()
+
+        if cur_len > self.init_len {
+            var ratio = cur_len / self.init_len
+
+            if ratio > self.max_stretch {
+                self.broken = true
+                return
+            }
+
+            // Apply movement
+            *self.p1.move(-ratio / 2)
+            *self.p2.move(ratio / 2)
+        }
+    }
+
+    priv fn get_length() -> real {
+        return (*self.p2.pos - *self.p1.pos).length()
+    }
+}
