@@ -29,7 +29,6 @@ impl Interpreter {
                 let mut val: Vec<RuntimeVal> = vec![];
                 // We evaluate all the values
                 for v in values {
-                    // val.push(v.evaluate(env)?);
                     val.push(self.evaluate(v, env)?);
                 }
 
@@ -519,7 +518,7 @@ mod tests {
     use crate::frontend::ast::{ASTNode, ASTNodeKind, ExpressionKind};
     use crate::interpreter::expr::ArrayIndexing;
     use crate::interpreter::{Interpreter, InterpreterError};
-    use crate::{environment::Env, values::RuntimeVal};
+    use crate::{environment::{Env, create_global_env}, values::RuntimeVal};
     use frontend::parser::VarType;
 
     #[test]
@@ -763,5 +762,32 @@ mod tests {
         )];
         _err = interpr.execute_program(nodes, &mut env);
         assert!(matches!(InterpreterError::ArrayOverIndexing, _err));
+    }
+    
+    #[test]
+    fn array_elem_different_type() {
+        let interpr = Interpreter {};
+        let mut env = create_global_env();
+        
+
+        let expr = ExpressionKind::ArrayLiteral { values: vec![
+            ExpressionKind::IntLiteral { value: 8 },
+            ExpressionKind::RealLiteral { value: 9.7 },
+        ]};
+
+        assert_eq!(
+            interpr.evaluate(expr, &mut env),
+            Err(InterpreterError::ArrayElemDiffType)
+        );
+
+        let expr = ExpressionKind::ArrayLiteral { values: vec![
+            ExpressionKind::RealLiteral { value: 9.7 },
+            ExpressionKind::Identifier { symbol: "true".into() },
+        ]};
+
+        assert_eq!(
+            interpr.evaluate(expr, &mut env),
+            Err(InterpreterError::ArrayElemDiffType)
+        );
     }
 }
