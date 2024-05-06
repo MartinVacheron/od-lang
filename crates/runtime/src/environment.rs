@@ -1,4 +1,5 @@
 use colored::*;
+use frontend::ast::ExpressionKind;
 use std::rc::Rc;
 use std::result::Result;
 use std::{
@@ -162,7 +163,6 @@ impl<'a> Env<'a> {
                         && assign_value != RuntimeVal::Null
                         && var_type != VarType::Func
             {
-                println!("Var type: {:?}, assign value: {:?}, assign value type: {:?}", var_type, assign_value, assign_value.get_type());
                 assign_value.try_cast_to(&var_type).map_err(|e| EnvError::WrongValType(var.clone(), e.to_string()))?
             }
             else {

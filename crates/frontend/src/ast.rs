@@ -52,12 +52,6 @@ pub enum StatementKind {
         // Vec of StatementKind::FnDeclaration
         functions: Vec<StatementKind>,
     },
-    StructCreation {
-        var_name: String,
-        struct_name: String,
-        constructor_args: Vec<ExpressionKind>,
-        constant: bool,
-    },
     FnDeclaration {
         name: String,
         args_and_type: Vec<(String, VarType)>,
@@ -123,7 +117,7 @@ pub enum ExpressionKind {
     ArrayCall {
         member: Box<ExpressionKind>,
         index: ArrayIndexing,
-    },
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]

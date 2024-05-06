@@ -225,34 +225,34 @@ impl Parser {
     // var mars = new Planet(arg1, arg2, ...)
     //
     // Even without a constructor, paranthesis are mandatory
-    pub(super) fn parse_struct_creation(
-        &mut self,
-        var_name: String,
-        constant: bool,
-    ) -> Result<StatementKind, ParserError> {
-        // We eat the 'new' keyword
-        let _ = self
-            .expect_token(TokenKind::New)
-            .map_err(|e| ParserError::StructCreation(format!("{e}")))?;
+    // pub(super) fn parse_struct_creation(
+    //     &mut self,
+    //     var_name: String,
+    //     constant: bool,
+    // ) -> Result<StatementKind, ParserError> {
+    //     // We eat the 'new' keyword
+    //     let _ = self
+    //         .expect_token(TokenKind::New)
+    //         .map_err(|e| ParserError::StructCreation(format!("{e}")))?;
 
-        // We get the struct name
-        let identifier = self
-            .expect_token(TokenKind::Identifier)
-            .map_err(|_| ParserError::MissingStructIdentifier)?;
+    //     // We get the struct name
+    //     let identifier = self
+    //         .expect_token(TokenKind::Identifier)
+    //         .map_err(|_| ParserError::MissingStructIdentifier)?;
 
-        // We get the list of arguments if there is a (
-        if let TokenKind::OpenParen = self.at().kind {
-            return Ok(StatementKind::StructCreation {
-                var_name,
-                struct_name: identifier.value,
-                constructor_args: self.parse_fn_call_args()?,
-                constant,
-            });
-        }
+    //     // We get the list of arguments if there is a (
+    //     if let TokenKind::OpenParen = self.at().kind {
+    //         return Ok(StatementKind::StructCreation {
+    //             var_name,
+    //             struct_name: identifier.value,
+    //             constructor_args: self.parse_fn_call_args()?,
+    //             constant,
+    //         });
+    //     }
 
-        // Else, return an error
-        Err(ParserError::MissingParenStructCreation)
-    }
+    //     // Else, return an error
+    //     Err(ParserError::MissingParenStructCreation)
+    // }
 }
 
 #[cfg(test)]

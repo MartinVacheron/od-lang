@@ -91,11 +91,11 @@ impl Parser {
                 self.eat()?;
 
                 // We declare the var expecting its value to follow. We check if we create a new struct
-                if let TokenKind::New = self.at().kind {
-                    Ok(self
-                        .parse_struct_creation(var_name, false)
-                        .map_err(|e| ParserError::ParseVarDecl(e.to_string()))?)
-                } else {
+                // if let TokenKind::New = self.at().kind {
+                //     Ok(self
+                //         .parse_struct_creation(var_name, false)
+                //         .map_err(|e| ParserError::ParseVarDecl(e.to_string()))?)
+                // } else {
                     let declaration = self
                         .parse_additive_expr()
                         .map_err(|e| ParserError::ParseVarDecl(e.to_string()))?;
@@ -117,7 +117,7 @@ impl Parser {
                         constant,
                         var_type,
                     })
-                }
+                // }
             }
             _ => Err(ParserError::ParseVarDecl("expected 'end line' or '=' after var name or type name".into()))
         }

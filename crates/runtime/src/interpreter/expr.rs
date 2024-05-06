@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use super::InterpreterError;
 use crate::frontend::ast::{ASTNodeKind, ArrayIndexing, ExpressionKind};
+use crate::values::StructPrototype;
 use crate::{
     environment::Env,
     values::{AssignType, RuntimeVal},
@@ -153,7 +154,7 @@ impl Interpreter {
                 caller,
                 args: args_in,
             } => {
-                // We extract the name of the variable and the function.
+                // We extract the name of the variable and the function if member call
                 let (var_name, fn_name) = caller.get_first_and_last();
 
                 // We evaluate each of the argument
@@ -164,6 +165,12 @@ impl Interpreter {
 
                 // Temporary env of execution
                 let mut tmp_env = Env::new(Some(env));
+
+                // We check if this is a structure that we are calling
+                let proto = env.lookup_struct_prototype(&fn_name.clone().unwrap());
+                if let Ok(p) = proto {
+                    return self.create_structure(p.clone(), args, &mut tmp_env)
+                }
 
                 // Update env if sub member call
                 if let ExpressionKind::MemberCall { member, property } = &*caller {
@@ -212,7 +219,7 @@ impl Interpreter {
                         }
                     }
                 }
-
+                
                 let func = self.evaluate(*caller, &mut tmp_env)?;
 
                 match func {
@@ -313,7 +320,8 @@ impl Interpreter {
         body: Vec<ASTNodeKind>,
         return_stmt: Option<ExpressionKind>,
         env: &mut Env,
-    ) -> Result<Option<RuntimeVal>, InterpreterError> {
+    ) -> Result<Option<RuntimeVal>, InterpreterError>
+    {
         // We check if we have the good number of arguments
         if proto_args.len() != fn_args.len() {
             return Err(InterpreterError::WrongArgNumberFnCall(
@@ -352,6 +360,98 @@ impl Interpreter {
             Some(s) => Ok(Some(self.evaluate(s, env)?)),
             None => Ok(None),
         }
+    }
+
+    // Create the structure objects
+    fn create_structure(
+        &self,
+        proto: Rc<StructPrototype>,
+        args_value: Vec<RuntimeVal>,
+        env: &mut Env
+    ) -> Result<RuntimeVal, InterpreterError>
+    {
+        // All members. We get the prototype and clone all it's value to use them
+        // It belongs to the new struct now
+        let members: Rc<RefCell<HashMap<String, RuntimeVal>>> = Rc::new(RefCell::new(HashMap::new()));
+        for mem in proto.members.clone() {
+            members.borrow_mut().insert(mem.name, mem.value);
+        }
+
+        // If args in the prototype
+        match &proto.constructor_args {
+            // No argument in constructor
+            None => {
+                // If some were given while creating the structure, error
+                if !args_value.is_empty() {
+                    return Err(InterpreterError::StructEmptyConstructor(
+                        proto.name.clone(),
+                    ));
+                }
+            }
+            // Arguments in constructor
+            Some(proto_args) => {
+                // If the wrong number of arguments was given, error
+                if proto_args.len() != args_value.len() {
+                    return Err(InterpreterError::StructConstructorWrongArgNb(
+                        proto.name.clone(),
+                        proto_args.len(),
+                        args_value.len(),
+                    ));
+                }
+
+                // We iterate over the tuple (arg_name, arg_value)
+                // This allow to avoid boilerplate code to the user
+                proto_args
+                    .iter()
+                    .zip(args_value)
+                    .try_for_each(|(arg_name, arg_val)| -> Result<(), InterpreterError> {
+                        // We declare it in the tmp env if there is one (meaning there is
+                        // a constructor body). Arguments are obviously constant
+                        // FIXME: put real type
+                        env.declare_var(arg_name.clone(), arg_val.clone(), true, VarType::Any)
+                            .map_err(|e| {
+                                InterpreterError::StructCreation(
+                                    proto.name.clone(),
+                                    format!("{e}"),
+                                )
+                            })?;
+
+                        // If it is a member
+                        if proto.has_member_named(arg_name) {
+                            members.borrow_mut().insert(arg_name.clone(), arg_val);
+                        }
+
+                        Ok(())
+                    })
+                    .map_err(|e| {
+                        InterpreterError::StructCreation(
+                            proto.name.clone(),
+                            format!("{e}"),
+                        )
+                    })?;
+            }
+        };
+
+        // We execute the constructor body
+        // We create the self structure. Can't fail
+        // We clone the Rc and as it is a RefCell, values updates will
+        // directly go to members. No need to get them back
+        env.create_self(proto.clone(), members.clone()).map_err(|e| {
+            InterpreterError::SelfInConstructor(proto.name.clone(), e.to_string())
+        })?;
+
+        // We execute all the statements. We clone them from the Rc ref to own them
+        if proto.constructor_body.is_some() {
+            for stmt in proto.constructor_body.as_ref().unwrap() {
+                let _ = self.interpret_node(stmt.clone(), env)?;
+            }
+        }
+
+        Ok(RuntimeVal::Structure {
+                prototype: proto.clone(),
+                members
+            }
+        )
     }
 }
 

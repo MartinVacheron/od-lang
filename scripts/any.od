@@ -1,35 +1,22 @@
-struct child3 {
-	var c
-	var dummy
+struct Planet {
+	var pos: vec2
+	var mass: real
 
-	new(c)
+	new(pos, mass)
 }
 
-struct child2 {
-	var b
-	var dummy
+struct vec2 {
+	var x, y: real
 
-	new(b)
+	new(x, y)
 }
 
-struct child1 {
+struct foo {
 	var a
-	var dummy
 
 	new(a)
 }
 
-struct nada {
-	var n
+fn get_8() -> int {
+	return 8
 }
-
-// var c3 = new child3([1, 2])
-// var c2 = new child2(c3)
-// var c1 = new child1(c2)
-
-var n1 = new nada()
-var n2 = new nada()
-
-var c3 = new child3([n1, n2])
-var c2 = new child2(c3)
-var c1 = new child1(c2)
