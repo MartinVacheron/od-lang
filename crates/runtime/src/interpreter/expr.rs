@@ -118,7 +118,7 @@ impl Interpreter {
                 // TODO: peut etre plus utile
                 // if let ExpressionKind::Identifier { symbol } = &*m1 {
                 //     if let ExpressionKind::FunctionCall { name, args: args_expr } = &*property {
-                //         let args = self.parse_fn_args_value(args_expr.clone(), env)?;
+                //         let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
 
                 //         // We take &mut because some methods modify the array
                 //         let var = env.lookup_mut_var(&symbol)?;
@@ -139,7 +139,7 @@ impl Interpreter {
                     ExpressionKind::Identifier { symbol } => {
                         match &*property {
                             ExpressionKind::FunctionCall { name, args: args_expr } => {
-                                let args = self.parse_fn_args_value(args_expr.clone(), env)?;
+                                let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
 
                                 // We take &mut because some methods modify the array
                                 let var = env.lookup_mut_var(&symbol)?;
@@ -233,7 +233,7 @@ impl Interpreter {
                 //             },
                 //             ExpressionKind::FunctionCall { name, args: args_expr } => {
                 //                 // We evaluate each of the argument
-                //                 let args = self.parse_fn_args_value(args_expr, &mut tmp_env)?;
+                //                 let args = self.evaluate_fn_args_value(args_expr, &mut tmp_env)?;
 
                 //                 tmp_env
                 //                     .create_self(prototype.clone(), members.clone())
@@ -293,7 +293,7 @@ impl Interpreter {
                 //         match *property {
                 //             ExpressionKind::FunctionCall { name, args: args_expr } => {
                 //                 // We evaluate each of the argument
-                //                 let args = self.parse_fn_args_value(args_expr, env)?;
+                //                 let args = self.evaluate_fn_args_value(args_expr, env)?;
 
                 //                 Ok(arr.call(name.as_str(), args.as_slice())?)
                 //             }
@@ -311,7 +311,7 @@ impl Interpreter {
                 args: args_expr,
             } => {
                 // We evaluate each of the argument
-                let args = self.parse_fn_args_value(args_expr, env)?;
+                let args = self.evaluate_fn_args_value(args_expr, env)?;
 
                 // Temporary env of execution
                 let mut tmp_env = Env::new(Some(env));
@@ -407,7 +407,6 @@ impl Interpreter {
         }
     }
 
-    // TODO: take the prototype of the function, not just the args
     fn execute_fn_in_env(
         &self,
         proto_args: Vec<(String, VarType)>,
@@ -572,6 +571,12 @@ impl Interpreter {
     //     },
     // }
     // So we parse the member calls until the first identifier and go upward
+
+    // TODO: use if we know that we are not going to call a function on the last member
+    // or there is no array call? Because that's the problem of this fn, we don't get
+    // a &mut of the runtimeval at the end so if the fn we should have called was 
+    // supposed to modify it, we're screwed. Calling 'get' on an array demands
+    // &mut too so maybe only for plain member read-only
     fn resolve_mem_call(
         &self,
         member: &ExpressionKind,
@@ -611,7 +616,6 @@ impl Interpreter {
     }
 
     // TODO: before entering this fn, be sure the prop is either a fn call or array call
-    // TODO: check before enter that the member is still a membercall
     fn resolve_assign_mem_call(
         &self,
         member: &ExpressionKind,
@@ -681,7 +685,7 @@ impl Interpreter {
                             return_type
                         } = members.borrow().get(name).unwrap()
                         {
-                            let args = self.parse_fn_args_value(args_expr.clone(), env)?;
+                            let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
 
                             match self.execute_fn_in_env(args_and_type.clone(), args, name.clone(), body.clone(), return_stmt.clone(), env)? {
                                 Some(r) => Ok(r),
@@ -691,7 +695,7 @@ impl Interpreter {
                     }
                     RuntimeVal::Array(arr) => {
                         // We evaluate each of the argument
-                        let args = self.parse_fn_args_value(args_expr.clone(), env)?;
+                        let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
 
                         Ok(arr.call(name.as_str(), args.as_slice())?)
                     }
@@ -717,7 +721,7 @@ impl Interpreter {
         //                     return_type
         //                 } = members.borrow().get(name).unwrap()
         //                 {
-        //                     let args = self.parse_fn_args_value(args_expr.clone(), env)?;
+        //                     let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
 
         //                     match self.execute_fn_in_env(args_and_type.clone(), args, name.clone(), body.clone(), return_stmt.clone(), env)? {
         //                         Some(r) => Ok(r),
@@ -732,7 +736,7 @@ impl Interpreter {
         //         match property {
         //             ExpressionKind::FunctionCall { name, args: args_expr } => {
         //                 // We evaluate each of the argument
-        //                 let args = self.parse_fn_args_value(args_expr.clone(), env)?;
+        //                 let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
 
         //                 Ok(arr.call(name.as_str(), args.as_slice())?)
         //             }
@@ -745,7 +749,7 @@ impl Interpreter {
         // else { panic!("Last sub member not an identifier") }
     }
 
-    fn parse_fn_args_value(
+    fn evaluate_fn_args_value(
         &self,
         args_expr: Vec<ExpressionKind>,
         env: &mut Env
