@@ -114,7 +114,7 @@ impl Parser {
 
     // Parse argument in prototype like:
     //  fn a(x, y: int, z: Planet)
-    fn parse_fn_decl_args(&mut self) -> Result<Vec<(String, VarType)>, ParserError> {
+    pub(super) fn parse_fn_decl_args(&mut self) -> Result<Vec<(String, VarType)>, ParserError> {
         // We eat the open paren
         let _ = self.expect_token(TokenKind::OpenParen)?;
         // Empty output
@@ -173,11 +173,17 @@ impl Parser {
     pub(super) fn parse_function_call(
         &mut self,
         caller: ExpressionKind,
-    ) -> Result<ExpressionKind, ParserError> {
-        Ok(ExpressionKind::FunctionCall {
-            caller: Box::new(caller),
-            args: self.parse_fn_call_args()?,
-        })
+    ) -> Result<ExpressionKind, ParserError>
+    {
+        match caller {
+            ExpressionKind::Identifier { symbol } => {
+                Ok(ExpressionKind::FunctionCall {
+                    name: symbol,
+                    args: self.parse_fn_call_args()?,
+                })
+            }
+            _ => Err(ParserError::FnNameNotIdent(format!("{:?}", caller)))
+        }
     }
 
     // Parses all the args

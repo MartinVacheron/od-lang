@@ -47,7 +47,8 @@ impl Parser {
     pub(super) fn parse_array_call(
         &mut self,
         array: ExpressionKind,
-    ) -> Result<ExpressionKind, ParserError> {
+    ) -> Result<ExpressionKind, ParserError>
+    {
         // First and last indexes
         let start: ExpressionKind;
         let end: ExpressionKind;
@@ -125,9 +126,14 @@ impl Parser {
         self.expect_token(TokenKind::CloseBracket)
             .map_err(|_| ParserError::ArraySlice("missing closing bracket ']'".into()))?;
 
-        Ok(ExpressionKind::ArrayCall {
-            member: Box::new(array),
-            index,
-        })
+        match array {
+            ExpressionKind::Identifier { symbol } => {
+                Ok(ExpressionKind::ArrayCall {
+                    name: symbol,
+                    index,
+                })
+            }
+            _ => Err(ParserError::ArrayNameNotIdent(format!("{:?}", array)))
+        }
     }
 }

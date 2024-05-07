@@ -3,7 +3,7 @@ struct NoConstructor {
 }
 
 test no_construct {
-	var a = new NoConstructor()
+	var a = NoConstructor()
 	assert_eq(a.x, null)
 	assert_eq(a.y, null)
 }
@@ -16,7 +16,7 @@ struct ConstructorSameName {
 }
 
 test constructor_var_same_name {
-	var a = new ConstructorSameName(-56., 98)
+	var a = ConstructorSameName(-56., 98)
 	assert_eq(a.x, -56.)
 	assert_eq(a.y, 98)
 }
@@ -29,7 +29,7 @@ struct ConstructorSameNameWrongOrder {
 }
 
 test constructor_var_wrong_order {
-	var a = new ConstructorSameNameWrongOrder(-998.2, 10.2068)
+	var a = ConstructorSameNameWrongOrder(-998.2, 10.2068)
 	assert_eq(a.x, 10.2068)
 	assert_eq(a.y, -998.2)
 }
@@ -42,7 +42,7 @@ struct ConstructorNotAllVar {
 }
 
 test constructor_not_all_var {
-	var a = new ConstructorNotAllVar(22.32)
+	var a = ConstructorNotAllVar(22.32)
 	assert_eq(a.x, null)
 	assert_eq(a.y, 22.32)
 }
@@ -55,7 +55,7 @@ struct ConstructorAdditionalVar {
 }
 
 test constructor_additional_var {
-	var a = new ConstructorAdditionalVar(-12., 20.5, 84.)
+	var a = ConstructorAdditionalVar(-12., 20.5, 84.)
 	assert_eq(a.x, -12.)
 	assert_eq(a.y, 20.5)
 }
@@ -68,7 +68,7 @@ struct ConstructorConstVar {
 }
 
 test constructor_with_const {
-	var a = new ConstructorConstVar(5)
+	var a = ConstructorConstVar(5)
 	assert_eq(a.g, 5)
 }
 
@@ -83,7 +83,7 @@ struct ConstructorWithBody {
 }
 
 test constructor_with_body {
-	var a = new ConstructorWithBody(1., 2, 3)
+	var a = ConstructorWithBody(1., 2, 3)
 	assert_eq(a.x, 10)
 }
 
@@ -100,7 +100,7 @@ struct WithMethods {
 }
 
 test struct_with_method {
-	var a = new WithMethods(52., -42)
+	var a = WithMethods(52., -42)
 	assert_eq(a.get_times_10(), 520)
 
 	a.increase_y(12)
@@ -122,7 +122,7 @@ struct WithFnInMethods {
 }
 
 test struct_with_method_in_method {
-	var a = new WithFnInMethods(52., -42)
+	var a = WithFnInMethods(52., -42)
 	a.increase_y(12)
 	assert_eq(a.y, -22)
 }
@@ -143,7 +143,7 @@ struct WithMethodsCall {
 }
 
 test struct_with_method_call {
-	var a = new WithMethodsCall(-10., 20.)
+	var a = WithMethodsCall(-10., 20.)
 	a.increase_y(12)
 	assert_eq(a.y, 40)
 }
@@ -181,9 +181,9 @@ struct System {
 }
 
 test struct_sub_member {
-	var pos = new Vec2(10., 5)
-	var mars = new StructMemberInStruct(pos, 80.)
-	var sys = new System(mars, 8)
+	var pos = Vec2(10., 5)
+	var mars = StructMemberInStruct(pos, 80.)
+	var sys = System(mars, 8)
 
 	assert_eq(sys.planet.pos.x, 10.)
 	assert_eq(sys.planet.pos.get_sum(), 15.)

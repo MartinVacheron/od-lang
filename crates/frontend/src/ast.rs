@@ -47,7 +47,7 @@ pub enum StatementKind {
         name: String,
         // Vector of member name + type + constant or not
         members: Vec<(String, VarType, bool)>,
-        constructor_args: Option<Vec<String>>,
+        constructor_args: Option<Vec<(String, VarType)>>,
         constructor_body: Option<Vec<ASTNodeKind>>,
         // Vec of StatementKind::FnDeclaration
         functions: Vec<StatementKind>,
@@ -109,13 +109,13 @@ pub enum ExpressionKind {
         property: Box<ExpressionKind>,
     },
     FunctionCall {
-        caller: Box<ExpressionKind>,
+        name: String,
         args: Vec<ExpressionKind>,
     },
     // Caller can ba a member can be planet.val[1]
     // Index can be any expr: val[5+6], val[pos.get_idx()]
     ArrayCall {
-        member: Box<ExpressionKind>,
+        name: String,
         index: ArrayIndexing,
     }
 }

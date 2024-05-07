@@ -194,6 +194,15 @@ impl<'a> Env<'a> {
         Ok(env.vars.get(var).unwrap())
     }
 
+    // We only look in this env because we can't write in parent's one
+    pub fn lookup_mut_var(&mut self, var: &String) -> Result<&mut RuntimeVal, EnvError> {
+        // We don't know if the env has the var
+        match self.vars.get_mut(var) {
+            Some(v) => Ok(v),
+            None => Err(EnvError::UndeclaredVar(var.clone()))
+        }
+    }
+
     // Assign a new value to an existing var
     pub fn assign_var(&mut self, var: &String, assign_type: AssignType) -> Result<(), EnvError> {
         // If variable exists
@@ -303,7 +312,7 @@ impl<'a> Env<'a> {
         &mut self,
         name: String,
         members: Vec<(String, VarType, bool)>,
-        constructor_args: Option<Vec<String>>,
+        constructor_args: Option<Vec<(String, VarType)>>,
         constructor_body: Option<Vec<ASTNodeKind>>,
         functions: Vec<StatementKind>,
     ) -> Result<(), EnvError> {

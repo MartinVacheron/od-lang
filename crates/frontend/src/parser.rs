@@ -190,14 +190,14 @@ impl Parser {
     }
 
     fn parse_multiplicative_expr(&mut self) -> Result<ExpressionKind, ParserError> {
-        let mut left = self.parse_member_call()?;
+        let mut left = self.parse_member_expression()?;
 
         // We skip in case of compound
         while (self.at().value == "*" || self.at().value == "/" || self.at().value == "%")
             && self.at().kind != TokenKind::CompoundAssign
         {
             let operator = self.eat()?.value;
-            let right = self.parse_member_call()?;
+            let right = self.parse_member_expression()?;
 
             left = ExpressionKind::BinaryOp {
                 left: Box::new(left),
@@ -209,25 +209,6 @@ impl Parser {
         Ok(left)
     }
 
-    // We check for call like: planet.radius
-    fn parse_member_call(&mut self) -> Result<ExpressionKind, ParserError> {
-        // Get the member
-        let member = self.parse_member_expression()?;
-
-        match self.at().kind {
-            // If we find an '(', we have a function call like planet.radius()
-            TokenKind::OpenParen => self.parse_function_call(member),
-            // If we find an '[', we have an array call like values[1]
-            // Index can be any expr: val[5+6], val[pos.get_idx()]
-            TokenKind::OpenBracket => {
-                // We eat the bracket
-                self.eat()?;
-                self.parse_array_call(member)
-            }
-            _ => Ok(member),
-        }
-    }
-
     // Parse recursivly statements like: space_obj.planet.position.x
     fn parse_member_expression(&mut self) -> Result<ExpressionKind, ParserError> {
         // First, we get space_obj
@@ -235,34 +216,44 @@ impl Parser {
             .parse_primary_expr()
             .map_err(|e| ParserError::MemberDeclartion(format!("{e}")))?;
 
-        // Allow array call inside member call like: foo.arr[0].bar
-        if self.at().kind == TokenKind::OpenBracket {
+        // Manage array and function call in between the member call chain
+        if self.at().kind == TokenKind::OpenParen {
+            member = self.parse_function_call(member)?;
+        } else if self.at().kind == TokenKind::OpenBracket {
             // We eat the bracket
             self.eat()?;
             member = self.parse_array_call(member)?;
         }
 
-        while let TokenKind::Dot = self.at().kind {
+        while self.at().kind == TokenKind::Dot {
             // We eat the dot
             let _ = self.eat()?;
 
             // First step, we get the property planet
             // We get the property position
-            let property = self.parse_primary_expr()?;
+            let mut property = self.parse_primary_expr()?;
+
             // If it's not an identifier, error
             if let ExpressionKind::Identifier { .. } = property {
             } else {
                 return Err(ParserError::MissingIdentifierAfterDot);
             }
 
-            // TODO: Call again to check if there is an array call
+            // Manage array and function call in between the member call chain
+            if self.at().kind == TokenKind::OpenParen {
+                property = self.parse_function_call(property)?;
+            } else if self.at().kind == TokenKind::OpenBracket {
+                // We eat the bracket
+                self.eat()?;
+                property = self.parse_array_call(property)?;
+            }
 
             // Now member is space_obj.planet
             // Second, member is space_obj.planet.position
             member = ExpressionKind::MemberCall {
                 member: Box::new(member),
                 property: Box::new(property),
-            };
+            }
         }
 
         Ok(member)

@@ -377,7 +377,7 @@ where T : Add<Output = T> + Sub<Output = T> + Mul<Output = T> + Div<Output = T> 
 pub struct StructPrototype {
     pub name: String,
     pub members: Vec<StructMember>,
-    pub constructor_args: Option<Vec<String>>,
+    pub constructor_args: Option<Vec<(String, VarType)>>,
     pub constructor_body: Option<Vec<ASTNodeKind>>,
 }
 

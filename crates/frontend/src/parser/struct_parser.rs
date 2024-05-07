@@ -34,9 +34,13 @@ impl Parser {
 
         // We collect all the members
         let mut members: Vec<(String, VarType, bool)> = Vec::new();
-        let mut constructor_args: Option<Vec<String>> = None;
+        let mut constructor_args: Option<Vec<(String, VarType)>> = None;
         let mut constructor_body: Option<Vec<ASTNodeKind>> = None;
         let mut functions: Vec<StatementKind> = Vec::new();
+
+        // Temporary members to be able to parse a full line et get potential
+        // comma declaration. We use it to apply the type at the end of the line
+        let mut line_members: Vec<(String, VarType, bool)> = Vec::new();
 
         while !self.is_eof() && self.at().value != "}" {
             match self.at().kind {
@@ -59,22 +63,11 @@ impl Parser {
                                 .map_err(|e| { ParserError::NoIdentifierAfterMemberDecl(e.to_string()) })?
                                 .value;
 
-                        // We get the member type
-                        let var_type = self.parse_type_after_token(TokenKind::Colon)?;
-
-                        if let Some(VarType::Void) = var_type {
-                            return Err(ParserError::VoidTypeForVar)
-                        }
-
-                        // We extract the type and put any if there is no type
-                        let var_type = match var_type {
-                            Some(t) => t,
-                            None => VarType::Any
-                        };
-
-                        members.push((
+                        // We put 'any' type at first, and we'll see at the end if there
+                        // is a type declaration
+                        line_members.push((
                             membre_name,
-                            var_type,
+                            VarType::Any,
                             constant,
                         ));
 
@@ -97,6 +90,11 @@ impl Parser {
                             TokenKind::EndLine => {}
                             // Could be struct Vec { var a, b, c }. We exit the loop
                             TokenKind::CloseBrace => break,
+                            // Could be struct Vec {
+                            //      var a, b: real
+                            //  }
+                            // We exit the loop
+                            TokenKind::Colon => break,
                             // Else, error
                             _ => {
                                 return Err(ParserError::MissingIdentCommaDecl(
@@ -105,6 +103,21 @@ impl Parser {
                             }
                         }
                     }
+
+                    // We get the member type
+                    let var_type = self.parse_type_after_token(TokenKind::Colon)?;
+
+                    if let Some(VarType::Void) = var_type {
+                        return Err(ParserError::VoidTypeForVar)
+                    }
+
+                    // We extract the type and put it to all the members if there is one
+                    if let Some(t) = var_type {
+                        line_members.iter_mut().for_each(|m| m.1 = t.clone());
+                    }
+
+                    // We had the members of the line to the global list
+                    members.append(&mut line_members);
                 }
                 // We parse the constructor. It is not mandatory unless there is at least one const member
                 TokenKind::New => {
@@ -120,23 +133,13 @@ impl Parser {
 
                     // We get all the var names as ExpressionKind
                     let args = self
-                        .parse_fn_call_args()
+                        .parse_fn_decl_args()
                         .map_err(|e| ParserError::ConstructorError(format!("{e}")))?;
 
-                    // We temporarly save all the names of the constructor
-                    let mut args_name: Vec<String> = Vec::new();
+                    // We eat the close paren
+                    self.expect_token(TokenKind::CloseParen)?;
 
-                    // All the ExpressionKind must be Identifier
-                    if !args.iter().all(|m| {
-                        if let ExpressionKind::Identifier { symbol, .. } = m {
-                            args_name.push(symbol.to_string());
-                            true
-                        } else {
-                            false
-                        }
-                    }) {
-                        return Err(ParserError::NonIdentifierVarNameInConstructor);
-                    }
+                    let args_name = args.iter().map(|a| &a.0).collect::<Vec<&String>>();
 
                     // We get all the constant members
                     let const_members = members
@@ -145,12 +148,15 @@ impl Parser {
                         .collect::<Vec<&(String, VarType, bool)>>();
 
                     // All the constant members must have been declared in the constructor
-                    if !const_members.iter().all(|m| args_name.contains(&m.0)) {
+                    if !const_members.iter().all(|m| args_name.contains(&&m.0)) {
                         return Err(ParserError::MissingConstMemberInConstructor)
                     }
 
                     // We save the argument names
-                    constructor_args = Some(args_name);
+                    constructor_args = match args.is_empty() {
+                        true => None,
+                        false => Some(args)
+                    };
 
                     // Now, we check if there is a body
                     self.skip_end_lines();
@@ -218,47 +224,12 @@ impl Parser {
             functions,
         })
     }
-
-    // To create a struct the syntaxe is:
-    // var mars = new Planet()
-    //          or
-    // var mars = new Planet(arg1, arg2, ...)
-    //
-    // Even without a constructor, paranthesis are mandatory
-    // pub(super) fn parse_struct_creation(
-    //     &mut self,
-    //     var_name: String,
-    //     constant: bool,
-    // ) -> Result<StatementKind, ParserError> {
-    //     // We eat the 'new' keyword
-    //     let _ = self
-    //         .expect_token(TokenKind::New)
-    //         .map_err(|e| ParserError::StructCreation(format!("{e}")))?;
-
-    //     // We get the struct name
-    //     let identifier = self
-    //         .expect_token(TokenKind::Identifier)
-    //         .map_err(|_| ParserError::MissingStructIdentifier)?;
-
-    //     // We get the list of arguments if there is a (
-    //     if let TokenKind::OpenParen = self.at().kind {
-    //         return Ok(StatementKind::StructCreation {
-    //             var_name,
-    //             struct_name: identifier.value,
-    //             constructor_args: self.parse_fn_call_args()?,
-    //             constant,
-    //         });
-    //     }
-
-    //     // Else, return an error
-    //     Err(ParserError::MissingParenStructCreation)
-    // }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lexer::Lexer;
+    use crate::{ast::ArrayIndexing, lexer::Lexer};
 
     #[test]
     fn parse_struct_member_declaration() {
@@ -273,19 +244,36 @@ mod tests {
                 new(z)
             }",
         );
-        let _ = lexer.tokenize(code);
-        let _ = parser.build_ast(lexer.tokens);
+        lexer.tokenize(code).unwrap();
+        parser.build_ast(lexer.tokens).unwrap();
 
         assert_eq!(
             parser.ast_nodes.first().unwrap().node,
             ASTNodeKind::Statement(StatementKind::StructDeclaration {
                 name: "Planet".to_string(),
                 members: vec![("y".to_string(), VarType::Any, false), ("z".to_string(), VarType::Any, true),],
-                constructor_args: Some(vec!["z".to_string()]),
+                constructor_args: Some(vec![("z".to_string(), VarType::Any)]),
                 constructor_body: None,
                 functions: Vec::new(),
             })
         );
+    }
+
+    #[test]
+    fn parse_struct_constructor_return() {
+        let mut lexer: Lexer = Default::default();
+        let mut parser: Parser = Default::default();
+
+        let code = String::from(
+            "struct Planet {
+                var x
+
+                new() -> int
+            }",
+        );
+        
+        lexer.tokenize(code).unwrap();
+        assert!(parser.build_ast(lexer.tokens).is_err());
     }
 
     #[test]
@@ -339,5 +327,216 @@ mod tests {
         let _ = lexer.tokenize(code);
 
         assert!(parser.build_ast(lexer.tokens).is_err());
+    }
+
+    #[test]
+    fn parse_struct_comma_decl() {
+        let mut lexer: Lexer = Default::default();
+        let mut parser: Parser = Default::default();
+
+        let code = String::from(
+            "struct Planet {
+                var x, y
+
+                new(x, y)
+            }");
+        lexer.tokenize(code).unwrap();
+        parser.build_ast(lexer.tokens).unwrap();
+
+        assert_eq!(
+            parser.ast_nodes.first().unwrap().node,
+            ASTNodeKind::Statement(StatementKind::StructDeclaration {
+                name: "Planet".to_string(),
+                members: vec![("x".to_string(), VarType::Any, false), ("y".to_string(), VarType::Any, false)],
+                constructor_args: Some(vec![("x".to_string(), VarType::Any), ("y".to_string(), VarType::Any)]),
+                constructor_body: None,
+                functions: Vec::new(),
+            })
+        );
+    }
+
+    #[test]
+    fn parse_struct_extra_constructor_args() {
+        let mut lexer: Lexer = Default::default();
+        let mut parser: Parser = Default::default();
+
+        let code = String::from(
+            "struct Planet {
+                var x, y
+
+                new(x, y, z, a: int)
+            }");
+        lexer.tokenize(code).unwrap();
+        parser.build_ast(lexer.tokens).unwrap();
+
+        assert_eq!(
+            parser.ast_nodes.first().unwrap().node,
+            ASTNodeKind::Statement(StatementKind::StructDeclaration {
+                name: "Planet".to_string(),
+                members: vec![("x".to_string(), VarType::Any, false), ("y".to_string(), VarType::Any, false)],
+                constructor_args: Some(vec![
+                    ("x".to_string(), VarType::Any),
+                    ("y".to_string(), VarType::Any),
+                    ("z".to_string(), VarType::Any),
+                    ("a".to_string(), VarType::Int)
+                ]),
+                constructor_body: None,
+                functions: Vec::new(),
+            })
+        );
+    }
+
+    #[test]
+    fn parse_struct_typed_members() {
+        let mut lexer: Lexer = Default::default();
+        let mut parser: Parser = Default::default();
+
+        let code = String::from(
+            "struct Planet {
+                var x, y: real
+                const z: []
+
+                new(z)
+            }");
+        lexer.tokenize(code).unwrap();
+        parser.build_ast(lexer.tokens).unwrap();
+
+        assert_eq!(
+            parser.ast_nodes.first().unwrap().node,
+            ASTNodeKind::Statement(StatementKind::StructDeclaration {
+                name: "Planet".to_string(),
+                members: vec![
+                    ("x".to_string(), VarType::Real, false),
+                    ("y".to_string(), VarType::Real, false),
+                    ("z".to_string(), VarType::Array(Box::new(VarType::Any)), true),
+                ],
+                constructor_args: Some(vec![
+                    ("z".to_string(), VarType::Any)
+                ]),
+                constructor_body: None,
+                functions: Vec::new(),
+            })
+        );
+    }
+
+    #[test]
+    fn parse_struct_constructor_body() {
+        let mut lexer: Lexer = Default::default();
+        let mut parser: Parser = Default::default();
+
+        let code = String::from(
+            "struct Planet {
+                var x, y: real
+                const z: []
+
+                new(z) {
+                    self.x = z[0]
+                    self.y = z[1]
+                }
+            }");
+        lexer.tokenize(code).unwrap();
+        parser.build_ast(lexer.tokens).unwrap();
+
+        assert_eq!(
+            parser.ast_nodes.first().unwrap().node,
+            ASTNodeKind::Statement(StatementKind::StructDeclaration {
+                name: "Planet".to_string(),
+                members: vec![
+                    ("x".to_string(), VarType::Real, false),
+                    ("y".to_string(), VarType::Real, false),
+                    ("z".to_string(), VarType::Array(Box::new(VarType::Any)), true),
+                ],
+                constructor_args: Some(vec![
+                    ("z".to_string(), VarType::Any)
+                ]),
+                constructor_body: Some(vec![
+                    ASTNodeKind::Expression(ExpressionKind::VarAssignment { 
+                        assigne: Box::new(ExpressionKind::MemberCall {
+                            member: Box::new(ExpressionKind::Identifier { symbol: "self".into() }),
+                            property: Box::new(ExpressionKind::Identifier { symbol: "x".into() })
+                        }),
+                        value: Box::new(ExpressionKind::ArrayCall {
+                            name: "z".into(),
+                            index: ArrayIndexing::Single(Box::new(ExpressionKind::IntLiteral { value: 0 }))
+                        })
+                    }),
+                    ASTNodeKind::Expression(ExpressionKind::VarAssignment { 
+                        assigne: Box::new(ExpressionKind::MemberCall {
+                            member: Box::new(ExpressionKind::Identifier { symbol: "self".into() }),
+                            property: Box::new(ExpressionKind::Identifier { symbol: "y".into() })
+                        }),
+                        value: Box::new(ExpressionKind::ArrayCall {
+                            name: "z".into(),
+                            index: ArrayIndexing::Single(Box::new(ExpressionKind::IntLiteral { value: 1 }))
+                        })
+                    })
+                ]),
+                functions: Vec::new(),
+            })
+        );
+    }
+
+    #[test]
+    fn parse_struct_fn() {
+        let mut lexer: Lexer = Default::default();
+        let mut parser: Parser = Default::default();
+
+        let code = String::from(
+            "struct Planet {
+                var x: real
+
+                new() {
+                    self.x = 1
+                }
+
+                fn get_x(a: [], b) -> real {
+                    var foo: int = 5
+                    return self.x
+                }
+            }");
+        lexer.tokenize(code).unwrap();
+        parser.build_ast(lexer.tokens).unwrap();
+
+        assert_eq!(
+            parser.ast_nodes.first().unwrap().node,
+            ASTNodeKind::Statement(StatementKind::StructDeclaration {
+                name: "Planet".to_string(),
+                members: vec![
+                    ("x".to_string(), VarType::Real, false)
+                ],
+                constructor_args: None,
+                constructor_body: Some(vec![
+                    ASTNodeKind::Expression(ExpressionKind::VarAssignment { 
+                        assigne: Box::new(ExpressionKind::MemberCall {
+                            member: Box::new(ExpressionKind::Identifier { symbol: "self".into() }),
+                            property: Box::new(ExpressionKind::Identifier { symbol: "x".into() })
+                        }),
+                        value: Box::new(ExpressionKind::IntLiteral { value: 1 })
+                    })
+                ]),
+                functions: vec![
+                    StatementKind::FnDeclaration {
+                        name: "get_x".into(),
+                        args_and_type: vec![
+                            ("a".into(), VarType::Array(Box::new(VarType::Any))),
+                            ("b".into(), VarType::Any)
+                        ],
+                        body: vec![
+                            ASTNodeKind::Statement(StatementKind::VarDeclaration {
+                                name: "foo".into(),
+                                value: ExpressionKind::IntLiteral { value: 5 },
+                                constant: false,
+                                var_type: VarType::Int
+                            })
+                        ],
+                        return_stmt: Some(ExpressionKind::MemberCall {
+                            member: Box::new(ExpressionKind::Identifier { symbol: "self".into() }),
+                            property: Box::new(ExpressionKind::Identifier { symbol: "x".into() }),
+                        }),
+                        return_type: VarType::Real
+                    }
+                ],
+            })
+        );
     }
 }

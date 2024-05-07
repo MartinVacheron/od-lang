@@ -1,10 +1,11 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::rc::Rc;
 
 use super::InterpreterError;
 use crate::frontend::ast::{ASTNodeKind, ArrayIndexing, ExpressionKind};
-use crate::values::StructPrototype;
+use crate::values::{StructMember, StructPrototype};
 use crate::{
     environment::Env,
     values::{AssignType, RuntimeVal},
@@ -57,6 +58,7 @@ impl Interpreter {
                     .map_err(|e| InterpreterError::Evaluation(e.to_string()))?)
             }
             // TODO: Test
+            // TODO: use new memcall parser
             ExpressionKind::VarAssignment { assigne, value } => {
                 let assignment_value = self.evaluate(*value, env)?;
 
@@ -75,15 +77,7 @@ impl Interpreter {
 
                         Ok(assignment_value)
                     }
-                    ExpressionKind::ArrayCall { member, index } => {
-                        // We get the name for errors
-                        let (_, arr_name) = member.get_first_and_last();
-
-                        // Cannot have empty array name
-                        if arr_name.is_none() {
-                            return Err(InterpreterError::NonArrayIndexing);
-                        }
-
+                    ExpressionKind::ArrayCall { name, index } => {
                         // All cases
                         match index {
                             // Single index is the only supported assignment
@@ -91,34 +85,17 @@ impl Interpreter {
                                 // Evaluate the index
                                 let id = self.evaluate(*i, env)?;
 
-                                match *member {
-                                    ExpressionKind::Identifier { symbol } => {
-                                        env.assign_var(
-                                            &symbol,
-                                            AssignType::ArrayModification {
-                                                index: id,
-                                                value: assignment_value,
-                                            },
-                                        )?;
-                                    }
-                                    ExpressionKind::MemberCall { member, property } => {
-                                        let props = parse_mem_call(&*member, &*property)?;
-
-                                        env.assign_struct_var(
-                                            props,
-                                            AssignType::ArrayModification {
-                                                index: id,
-                                                value: assignment_value,
-                                            },
-                                        )?;
-                                    }
-                                    // It's impossible to get anything else
-                                    _ => return Err(InterpreterError::NonArrayIndexing),
-                                }
+                                env.assign_var(
+                                    &name,
+                                    AssignType::ArrayModification {
+                                        index: id,
+                                        value: assignment_value,
+                                    },
+                                )?;
                             }
                             // Else, error
                             ArrayIndexing::Slice { .. } => {
-                                return Err(InterpreterError::ArraySliceAssign(arr_name.unwrap()))
+                                return Err(InterpreterError::ArraySliceAssign(name))
                             }
                         }
 
@@ -134,27 +111,114 @@ impl Interpreter {
                 member: m1,
                 property,
             } => {
-                let mut props = parse_mem_call(&*m1, &*property)?;
+                let mut out: RuntimeVal = RuntimeVal::Null;
+                self.resolve_mem_call(&*m1, env, &mut out)?;
 
-                // We get the struct variable
-                let structure = env
-                    .lookup_var(props.first().unwrap())
-                    .map_err(|e| InterpreterError::MemberCall(props.remove(0), e.to_string()))?;
 
-                // We remove the struct name
-                let struct_name = props.remove(0);
+                //  TMP   //
+                self.resolve_assign_mem_call(&m1, &property, env, RuntimeVal::Int(123456789))?;
 
-                // We get the value of the member call
-                Ok(structure.get_sub_member(&mut props).map_err(|e| {
-                    InterpreterError::WrongStructMemberCall(struct_name, e.to_string())
-                })?)
+
+
+                let mut tmp_env = Env::new(Some(env));
+
+                match out {
+                    RuntimeVal::Structure { prototype, members } => {
+                        // We extract the property
+                        match *property {
+                            ExpressionKind::Identifier { symbol } => {
+                                let b = members.borrow();
+                                
+                                match b.get(&symbol) {
+                                    Some(m) => Ok(m.clone()),
+                                    None => Err(InterpreterError::WrongStructMember(prototype.name.clone(), symbol))
+                                }
+                            },
+                            ExpressionKind::FunctionCall { name, args: args_in } => {
+                                // We evaluate each of the argument
+                                let mut args: Vec<RuntimeVal> = vec![];
+                                for arg in args_in {
+                                    args.push(self.evaluate(arg, &mut tmp_env)?);
+                                }
+
+                                tmp_env
+                                    .create_self(prototype.clone(), members.clone())
+                                    .map_err(|e| {
+                                        InterpreterError::SelfInConstructor(
+                                            name.clone(),
+                                            e.to_string(),
+                                        )
+                                    })?;
+
+                                let struct_fn = prototype
+                                    .members
+                                    .iter()
+                                    .filter(|m| &m.name == &name)
+                                    .collect::<Vec<&StructMember>>();
+
+                                let struct_fn = struct_fn.first().unwrap();
+
+                                if let RuntimeVal::Function { args_and_type, body, return_stmt, return_type } = &struct_fn.value {
+                                    match self.execute_fn_in_env(
+                                        args_and_type.clone(),
+                                        args,
+                                        name,
+                                        body.clone(),
+                                        return_stmt.clone(),
+                                        &mut tmp_env,
+                                    )?
+                                    {
+                                        Some(res) => Ok(res),
+                                        None => Ok(RuntimeVal::Null),
+                                    }
+                                } else {
+                                    todo!("Struct member not a fn")
+                                }
+                            },
+                            ExpressionKind::ArrayCall { name, index } => {
+                                let mem_bor = members.borrow();
+
+                                let struct_arr = mem_bor
+                                    .iter()
+                                    .filter(|m| m.0 == &name)
+                                    .collect::<Vec<(&String, &RuntimeVal)>>();
+
+                                // Check if we found one
+                                let struct_arr = match struct_arr.len() {
+                                    1 => struct_arr.first().unwrap(),
+                                    _ => todo!()
+                                };
+
+                                self.evaluate_array_call(struct_arr.1.clone(), index, env)
+                            }
+                            _ => todo!("Not a fn call in mem call")
+                        }
+                    }
+                    RuntimeVal::Array(mut arr) => {
+                        match *property {
+                            ExpressionKind::FunctionCall { name, args: args_in } => {
+                                // We evaluate each of the argument
+                                let mut args: Vec<RuntimeVal> = vec![];
+                                for arg in args_in {
+                                    args.push(self.evaluate(arg, &mut tmp_env)?);
+                                }
+
+                                Ok(arr.call(name.as_str(), args.as_slice())?)
+                            }
+                            _ => Err(InterpreterError::ArrayNonMethodCall)
+                        }
+                    }
+                    _ => {
+                        println!("It was: {:?}", out);
+                        todo!("Not a struct or array in mem call")
+                    }
+                }
             }
             ExpressionKind::FunctionCall {
-                caller,
+                name,
                 args: args_in,
             } => {
                 // We extract the name of the variable and the function if member call
-                let (var_name, fn_name) = caller.get_first_and_last();
 
                 // We evaluate each of the argument
                 let mut args: Vec<RuntimeVal> = vec![];
@@ -166,60 +230,12 @@ impl Interpreter {
                 let mut tmp_env = Env::new(Some(env));
 
                 // We check if this is a structure that we are calling
-                let proto = env.lookup_struct_prototype(&fn_name.clone().unwrap());
+                let proto = env.lookup_struct_prototype(&name);
                 if let Ok(p) = proto {
                     return self.create_structure(p.clone(), args, &mut tmp_env)
                 }
 
-                // Update env if sub member call
-                if let ExpressionKind::MemberCall { member, property } = &*caller {
-                    // We parse the members chain
-                    let mut members_chain = parse_mem_call(&*member, &*property)?;
-
-                    let fn_name = fn_name.as_ref().expect("Error getting function name");
-                    let var_name = var_name.as_ref().expect("Error getting variable name");
-
-                    // We get the variable
-                    let var = env.lookup_var(&var_name)?;
-
-                    if let RuntimeVal::Structure { prototype, members } = var {
-                        // We remove function name in members chain list
-                        let _ = members_chain.pop();
-
-                        // If after remove fn name we have only one element
-                        if members_chain.len() == 1 {
-                            // We create the self structure
-                            tmp_env
-                                .create_self(prototype.clone(), members.clone())
-                                .map_err(|e| {
-                                    InterpreterError::SelfInConstructor(
-                                        fn_name.clone(),
-                                        e.to_string(),
-                                    )
-                                })?;
-                        } else {
-                            // We remove the structure name
-                            let _ = members_chain.remove(0);
-                            // We get the member resolved
-                            let sub_mem = var.get_sub_member(&mut members_chain)?;
-
-                            // Last cases
-                            if let RuntimeVal::Structure { prototype: p2, members: m2 } = sub_mem {
-                                // We create the self structure
-                                tmp_env.create_self(p2.clone(), m2.clone()).map_err(
-                                    |e| {
-                                        InterpreterError::SelfInConstructor(
-                                            fn_name.clone(),
-                                            e.to_string(),
-                                        )
-                                    },
-                                )?;
-                            }
-                        }
-                    }
-                }
-                
-                let func = self.evaluate(*caller, &mut tmp_env)?;
+                let func = env.lookup_var(&name)?.clone();
 
                 match func {
                     // Native functions
@@ -236,78 +252,71 @@ impl Interpreter {
                         return_stmt,
                         return_type
                     } => {
-                        let fn_name = fn_name.expect("Error getting function name");
-
                         match self.execute_fn_in_env(
                             args_and_type,
                             args,
-                            fn_name,
+                            name,
                             body,
                             return_stmt,
                             &mut tmp_env,
-                        )? {
+                        )?
+                        {
                             Some(res) => Ok(res),
                             None => Ok(RuntimeVal::Null),
                         }
                     }
-                    RuntimeVal::Array(_) => {
-                        let fn_name = fn_name.expect("Error getting function name");
-                        let var_name = var_name.expect("Error getting variable name");
-
-                        env.assign_var(
-                            &var_name,
-                            AssignType::FunctionCall { fn_name, args },
-                        )?;
-
-                        Ok(RuntimeVal::Null)
-                    }
-                    _ => Err(InterpreterError::NonFunctionCall(fn_name.expect("Error getting function name"))),
+                    _ => Err(InterpreterError::NonFunctionCall(name)),
                 }
             }
             // Array calls are: arr[0], arr[:x], ...
-            ExpressionKind::ArrayCall { member, index } => {
+            ExpressionKind::ArrayCall { name, index } => {
                 // We evaluate array variable and index
-                let mem = self.evaluate(*member, env)?;
+                let arr = env.lookup_var(&name)?.clone();
 
-                // All cases
-                match mem {
-                    RuntimeVal::Array(mut arr) => {
-                        // Different indexing syntaxes
-                        match index {
-                            // Indexing like: arr[0], arr[-1], ..
-                            ArrayIndexing::Single(i) => {
-                                let id = self.evaluate(*i, env)?;
-
-                                Ok(arr
-                                    .call("get", &vec![id])
-                                    .map_err(|e| InterpreterError::ArrayGetFnCall(e))?)
-                            }
-                            // Indexing like: arr[:x], arr[2:], arr[2:4]
-                            ArrayIndexing::Slice { start, end } => {
-                                let s = match start {
-                                    Some(expr) => self.evaluate(*expr, env)?,
-                                    _ => RuntimeVal::Null,
-                                };
-                                let e = match end {
-                                    Some(expr) => self.evaluate(*expr, env)?,
-                                    _ => RuntimeVal::Null,
-                                };
-
-                                Ok(arr
-                                    .call("get_slice", &vec![s, e])
-                                    .map_err(|e| InterpreterError::ArrayGetFnCall(e))?)
-                            }
-                        }
-                    }
-                    // Not an array
-                    _ => Err(InterpreterError::NonArrayIndexing),
-                }
+                self.evaluate_array_call(arr, index, env)
             }
             ExpressionKind::EmptyStructLiteral { name } => {
                 let proto = env.lookup_struct_prototype(&name)?;
 
                 Ok(RuntimeVal::PlaceholderStruct { prototype: proto.clone() })
             }
+        }
+    }
+
+    // Evaluates an array call
+    fn evaluate_array_call(&self, array: RuntimeVal, index: ArrayIndexing, env: &mut Env) -> Result<RuntimeVal, InterpreterError> {
+        // All cases
+        match array {
+            RuntimeVal::Array(mut arr) => {
+                // Different indexing syntaxes
+                match index {
+                    // Indexing like: arr[0], arr[-1], ..
+                    ArrayIndexing::Single(i) => {
+                        let id = self.evaluate(*i, env)?;
+
+                        Ok(arr
+                            .call("get", &vec![id])
+                            .map_err(|e| InterpreterError::ArrayGetFnCall(e))?)
+                    }
+                    // Indexing like: arr[:x], arr[2:], arr[2:4]
+                    ArrayIndexing::Slice { start, end } => {
+                        let s = match start {
+                            Some(expr) => self.evaluate(*expr, env)?,
+                            _ => RuntimeVal::Null,
+                        };
+                        let e = match end {
+                            Some(expr) => self.evaluate(*expr, env)?,
+                            _ => RuntimeVal::Null,
+                        };
+
+                        Ok(arr
+                            .call("get_slice", &vec![s, e])
+                            .map_err(|e| InterpreterError::ArrayGetFnCall(e))?)
+                    }
+                }
+            }
+            // Not an array
+            _ => Err(InterpreterError::NonArrayIndexing),
         }
     }
 
@@ -377,7 +386,7 @@ impl Interpreter {
         }
 
         // If args in the prototype
-        match &proto.constructor_args {
+        match proto.constructor_args.clone() {
             // No argument in constructor
             None => {
                 // If some were given while creating the structure, error
@@ -401,33 +410,30 @@ impl Interpreter {
                 // We iterate over the tuple (arg_name, arg_value)
                 // This allow to avoid boilerplate code to the user
                 proto_args
-                    .iter()
+                    .into_iter()
                     .zip(args_value)
-                    .try_for_each(|(arg_name, arg_val)| -> Result<(), InterpreterError> {
+                    .try_for_each(|((arg_name, arg_type), arg_val)| -> Result<(), InterpreterError> {
                         // We declare it in the tmp env if there is one (meaning there is
                         // a constructor body). Arguments are obviously constant
-                        // FIXME: put real type
-                        env.declare_var(arg_name.clone(), arg_val.clone(), true, VarType::Any)
+                        env.declare_var(arg_name.clone(), arg_val.clone(), true, arg_type)
                             .map_err(|e| {
                                 InterpreterError::StructCreation(
                                     proto.name.clone(),
-                                    format!("{e}"),
+                                    e.to_string(),
                                 )
                             })?;
 
                         // If it is a member
-                        if proto.has_member_named(arg_name) {
+                        if proto.has_member_named(&arg_name) {
                             members.borrow_mut().insert(arg_name.clone(), arg_val);
                         }
 
                         Ok(())
                     })
-                    .map_err(|e| {
-                        InterpreterError::StructCreation(
+                    .map_err(|e| {InterpreterError::StructCreation(
                             proto.name.clone(),
-                            format!("{e}"),
-                        )
-                    })?;
+                            e.to_string(),
+                    )})?;
             }
         };
 
@@ -446,11 +452,146 @@ impl Interpreter {
             }
         }
 
+        // We return the structure
         Ok(RuntimeVal::Structure {
                 prototype: proto.clone(),
                 members
             }
         )
+    }
+
+
+    // TODO: Checker tous les 'clone'
+    // TODO: checker les 'todo!'
+    // Hard to understand function. A member call has to be parsed in reverse order
+    // The shape is:
+    // Member: MemberCall {
+    //     member: MemberCall {
+    //         member: MemberCall {
+    //             member: Identifier {
+    //                 symbol: "top",
+    //             },
+    //             property: Identifier {
+    //                 symbol: "glob",
+    //             },
+    //         },
+    //         property: Identifier {
+    //             symbol: "p",
+    //         },
+    //     },
+    //     property: Identifier {
+    //         symbol: "pos",
+    //     },
+    // }
+    // So we parse the member calls until the first identifier and go upward
+    fn resolve_mem_call(
+        &self,
+        member: &ExpressionKind,
+        env: &mut Env,
+        out: &mut RuntimeVal
+    ) -> Result<(), InterpreterError>
+    {
+        match member {
+            ExpressionKind::MemberCall { member: m1, property } => {
+                self.resolve_mem_call(&m1, env, out)?;
+
+                if let RuntimeVal::Structure { members, .. } = out.clone() {
+                    match &**property {
+                        ExpressionKind::Identifier { symbol } => {
+                            *out = members.borrow().get(symbol).unwrap().clone();
+                        },
+                        ExpressionKind::ArrayCall { name, index } => {
+                            let arr = members.borrow().get(name).unwrap().clone();
+
+                            if let RuntimeVal::Array(_) = arr {
+                                *out = self.evaluate_array_call(arr, index.clone(), env)?;
+                            } else {
+                                todo!("Error sub memeber array")
+                            }
+                        }
+                        _ => todo!("Not supported sub member call")
+                    }
+                }
+            },
+            ExpressionKind::Identifier { symbol } => {
+                *out = env.lookup_var(symbol)?.clone();
+            },
+            _ => todo!("Not supported member call")
+        }
+
+        Ok(())
+    }
+
+    fn resolve_assign_mem_call(
+        &self,
+        member: &ExpressionKind,
+        property: &ExpressionKind,
+        env: &mut Env,
+        assign_value: RuntimeVal
+    ) -> Result<RuntimeVal, InterpreterError>
+    {
+        let mut all_sub_mem: Vec<ExpressionKind> = vec![];
+
+        let first_var: &mut RuntimeVal;
+        let mut tmp_mem: ExpressionKind = member.clone();
+
+        loop {
+            match tmp_mem {
+                ExpressionKind::MemberCall { member, property } => {
+                    tmp_mem = *member;
+                    all_sub_mem.push(*property);
+                }
+                ExpressionKind::Identifier { ref symbol } => {
+                    first_var = env.lookup_mut_var(&symbol)?;
+                    break
+                }
+                ExpressionKind::ArrayCall { name, index } => todo!("Handle array call in sub mem assign"),
+                _ => panic!("Impossible to be here")
+            }
+        }
+        
+        all_sub_mem.reverse();
+
+        println!("First: {:#?}", first_var);
+        println!("Chain: {:#?}", all_sub_mem);
+
+        let mut final_members = match first_var {
+            RuntimeVal::Structure { members, .. } => {
+                members.clone()
+            }
+            RuntimeVal::Array(arr) => {
+                if let ExpressionKind::FunctionCall { name, args: args_in } = property {
+                    // We evaluate each of the argument
+                    let mut args: Vec<RuntimeVal> = vec![];
+                    for arg in args_in {
+                        args.push(self.evaluate(arg.clone(), env)?);
+                    }
+
+                    return Ok(arr.call(name, args.as_slice())?)
+                } else {
+                    panic!("Can't call other stuff than methods on array")
+                }
+                todo!("Handle array call in sub mem")
+            },
+            _ => panic!("impossible to be here")
+        };
+
+        for sub_mem in all_sub_mem {
+            match sub_mem {
+                ExpressionKind::Identifier { symbol } => {
+                    if let RuntimeVal::Structure { prototype, members } = final_members.clone().borrow().get(&symbol).unwrap() {
+                        final_members = members.clone();
+                    }
+                }
+                _ => panic!("impossible to be here")
+            }
+        }
+
+        if let ExpressionKind::Identifier { symbol } = property {
+            final_members.borrow_mut().insert(symbol.clone(), assign_value);
+        }
+
+        Ok(RuntimeVal::Null)
     }
 }
 
@@ -476,12 +617,17 @@ fn parse_mem_call(
     Ok(props)
 }
 
-// Recursivly parse member call. say we parse foo.bar.biz.buz
+// Recursivly parse member call. say we parse:
+//  ex1: foo.bar.biz.buz
+//  ex2: foo
+//  ex3: foo[0].bar
 fn parse_recurs_mem_call(
     m1: &ExpressionKind,
     prop: &mut Vec<String>,
 ) -> Result<(), InterpreterError> {
-    // Here, m1 is foo.bar.biz
+    // Here,:
+    //  ex1: m1 is foo.bar.biz
+    //  ex2: m1 is foo
     match m1 {
         ExpressionKind::MemberCall {
             member: m2,
@@ -502,12 +648,14 @@ fn parse_recurs_mem_call(
 
             Ok(())
         }
-        // Else, it's a single member call like foo.bar
+        // We are at ex1,  m1 = foo and prop = bar
         ExpressionKind::Identifier { symbol } => {
             prop.push(symbol.clone());
             Ok(())
         }
-        _ => Err(InterpreterError::WrongStructMemberTypeCall),
+        _ => {
+            Err(InterpreterError::WrongStructMemberTypeCall)
+        },
     }
 }
 
@@ -679,9 +827,7 @@ mod tests {
 
         let mut nodes: Vec<ASTNode> = vec![ASTNode::new(
             ExpressionKind::ArrayCall {
-                member: Box::new(ExpressionKind::Identifier {
-                    symbol: "values".into(),
-                }),
+                name: "values".into(),
                 index: ArrayIndexing::Single(Box::new(ExpressionKind::IntLiteral { value: 0 })),
             }
             .into(),
@@ -694,9 +840,7 @@ mod tests {
 
         nodes = vec![ASTNode::new(
             ExpressionKind::ArrayCall {
-                member: Box::new(ExpressionKind::Identifier {
-                    symbol: "values".into(),
-                }),
+                name: "values".into(),
                 index: ArrayIndexing::Single(Box::new(ExpressionKind::IntLiteral { value: 2 })),
             }
             .into(),
@@ -709,9 +853,7 @@ mod tests {
 
         nodes = vec![ASTNode::new(
             ExpressionKind::ArrayCall {
-                member: Box::new(ExpressionKind::Identifier {
-                    symbol: "values".into(),
-                }),
+                name: "values".into(),
                 index: ArrayIndexing::Single(Box::new(ExpressionKind::IntLiteral { value: -1 })),
             }
             .into(),
@@ -724,9 +866,7 @@ mod tests {
 
         nodes = vec![ASTNode::new(
             ExpressionKind::ArrayCall {
-                member: Box::new(ExpressionKind::Identifier {
-                    symbol: "values".into(),
-                }),
+                name: "values".into(),
                 index: ArrayIndexing::Single(Box::new(ExpressionKind::IntLiteral { value: -3 })),
             }
             .into(),
@@ -739,29 +879,25 @@ mod tests {
 
         nodes = vec![ASTNode::new(
             ExpressionKind::ArrayCall {
-                member: Box::new(ExpressionKind::Identifier {
-                    symbol: "values".into(),
-                }),
+                name: "values".into(),
                 index: ArrayIndexing::Single(Box::new(ExpressionKind::IntLiteral { value: 4 })),
             }
             .into(),
             0,
         )];
-        let mut _err = interpr.execute_program(nodes, &mut env);
-        assert!(matches!(InterpreterError::ArrayOverIndexing, _err));
+        
+        assert!(interpr.execute_program(nodes, &mut env).is_err());
 
         nodes = vec![ASTNode::new(
             ExpressionKind::ArrayCall {
-                member: Box::new(ExpressionKind::Identifier {
-                    symbol: "values".into(),
-                }),
+                name: "values".into(),
                 index: ArrayIndexing::Single(Box::new(ExpressionKind::IntLiteral { value: -5 })),
             }
             .into(),
             0,
         )];
-        _err = interpr.execute_program(nodes, &mut env);
-        assert!(matches!(InterpreterError::ArrayOverIndexing, _err));
+        
+        assert!(interpr.execute_program(nodes, &mut env).is_err());
     }
     
     #[test]

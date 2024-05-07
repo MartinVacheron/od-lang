@@ -21,12 +21,6 @@ pub enum InterpreterError {
     #[error("{} during structure declaration in: {0}", "Error".red().bold())]
     StructDeclaration(String),
 
-    #[error("{} during structure creation, undeclared structure: {0}", "Error".red().bold())]
-    UndeclaredStructCreation(String),
-
-    #[error("{} during member call -{0}-: {1}", "Error".red().bold())]
-    MemberCall(String, String),
-
     #[error("{} during structure -{0}- member call: {1}", "Error".red().bold())]
     WrongStructMemberCall(String, String),
 
@@ -44,6 +38,9 @@ pub enum InterpreterError {
 
     #[error("{} during structure creation -{0}-: {1}", "Error".red().bold())]
     SelfInConstructor(String, String),
+    
+    #[error("{} during structure member access: structure -{0}- dosen't have member -{1}-", "Error".red().bold())]
+    WrongStructMember(String, String),
 
     // Functions
     #[error("{} during function evaluation: {0}", "Error".red().bold())]
@@ -58,21 +55,12 @@ pub enum InterpreterError {
     #[error("{} during '{0}' function evaluation: identifier is not a function", "Error".red().bold())]
     NonFunctionCall(String),
 
-    #[error("{} during '{0}' function evaluation: variable must be a structure or a built-in type withy", "Error".red().bold())]
-    FnCallOnSimpleVar(String),
-
     // Arrays
     #[error("{} indexing non array variable.", "Error".red().bold())]
     NonArrayIndexing,
 
-    #[error("{} index must be a number.", "Error".red().bold())]
-    NonIntegerArrayIndex,
-
     #[error("{} during array creation: all elements must be of same type.", "Error".red().bold())]
     ArrayElemDiffType,
-
-    #[error("{} during array access -{0}-: {1}", "Error".red().bold())]
-    ArrayOverIndexing(String, String),
 
     #[error("{0}")]
     ArrayGetFnCall(#[from] ValueError),
@@ -80,14 +68,11 @@ pub enum InterpreterError {
     #[error("{0}")]
     InterpFromEnv(#[from] EnvError),
 
-    #[error("{} while getting names to resolve array function call.", "Error".red().bold())]
-    ArrayFnNameInterp,
-
-    #[error("{} during array assignment -{0}- at index {1}: {2}", "Error".red().bold())]
-    WrongArrayAssignment(String, usize, String),
-
     #[error("{} during array assignment -{0}-, slice indexing is not allowed in assignment, only in expressions", "Error".red().bold())]
     ArraySliceAssign(String),
+    
+    #[error("{} during method call on array, non existing method call", "Error".red().bold())]
+    ArrayNonMethodCall,
 
     // Types
     #[error("{} argument: -{0}-, found wrong type: -{1}-.", "Error".red().bold())]

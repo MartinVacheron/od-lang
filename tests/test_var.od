@@ -129,9 +129,9 @@ struct Vec2 {
 
 test typed_var_struct {
 	// We expect no error while assigning
-	var a: vec2 = new Vec2()
-	var b: vec2 = new Vec2()
-	var c = new Vec2()
+	var a: Vec2 = Vec2()
+	var b: Vec2 = Vec2()
+	var c = Vec2()
 	a = b
 	a = c
 }

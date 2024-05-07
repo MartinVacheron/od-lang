@@ -1,22 +1,85 @@
 struct Planet {
 	var pos: vec2
 	var mass: real
+	var sat: []
 
-	new(pos, mass)
+	new(pos, mass, sat) {
+		self.pos.x += 10
+
+		var i: int = 5
+		self.mass /= i
+	}
+}
+
+struct Sat {
+	var orbite: vec2
+	new(orbite)
+
+	fn get_time(factor: int) -> real {
+		return 5 * factor
+	}
 }
 
 struct vec2 {
 	var x, y: real
 
-	new(x, y)
+	new(x: real, y: real)
+
+	fn add(x: int, y: int) -> int {
+		return x + y
+	}
+
+	fn div2() {
+		self.x /= 2.
+		self.y /= 2.
+	}
 }
 
-struct foo {
-	var a
+struct Glob {
+	var p: Planet
 
-	new(a)
+	new(p)
+
+	fn get_p() {
+		return self.p
+	}
+}
+
+struct Top {
+	var glob: Glob
+	new(glob)
 }
 
 fn get_8() -> int {
 	return 8
 }
+
+var satelites: [] = [Sat(vec2(56, 89)), Sat(vec2(-5, 999)), Sat(vec2(-54765, 10345))]
+
+var mars = Planet(vec2(1, 2), 50, satelites)
+var glob = Glob(mars)
+var top = Top(glob)
+
+// echo()
+// var a = top.glob.p.pos.add(1, 3)
+// echo(a)
+// echo()
+// echo(top.glob.p.pos.add(1, 3))
+
+// echo(top.glob.p.sat)
+// echo()
+// echo()
+
+// var t1 = top.glob.p.sat[2]
+// echo(t1)
+// var t1 = top.glob.p.sat[0].orbite.x
+var t1 = top.glob.p
+echo()
+echo()
+echo()
+echo()
+echo()
+// echo(t1)
+// var t3 = top.glob.p.sat[0].orbite.add()
+// echo(t2)
+// echo(t3)

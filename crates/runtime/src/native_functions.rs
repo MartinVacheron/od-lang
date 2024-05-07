@@ -18,7 +18,7 @@ pub fn native_print(args: &[RuntimeVal]) -> Result<RuntimeVal, NativeFnError> {
             println!("{}", arg);    
         }
     } else {
-        println!("{}", args[0]);
+        println!("");
     }
 
     Ok(RuntimeVal::Null)

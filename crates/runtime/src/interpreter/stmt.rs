@@ -78,15 +78,11 @@ impl Interpreter {
                 for node in body {
                     let is_test = match &node {
                         ASTNodeKind::Expression(ExpressionKind::FunctionCall {
-                            caller, ..
+                            name, ..
                         }) => {
-                            if let ExpressionKind::Identifier { symbol, .. } = &**caller {
-                                match symbol.as_str() {
-                                    "assert_eq" | "assert_neq" => true,
-                                    _ => false,
-                                }
-                            } else {
-                                false
+                            match &**name {
+                                "assert_eq" | "assert_neq" => true,
+                                _ => false,
                             }
                         }
                         _ => false,
@@ -281,7 +277,12 @@ mod tests {
 
         let name: String = "Planet".into();
         let members = vec![("pos".into(), VarType::Any, false), ("radius".into(), VarType::Any, true)];
-        let constructor_args = vec!["pos".into(), "x".into(), "radius".into(), "y".into()];
+        let constructor_args = vec![
+            ("pos".into(), VarType::Any),
+            ("x".into(), VarType::Any),
+            ("radius".into(), VarType::Any),
+            ("y".into(), VarType::Any),
+        ];
         let constructor_body = None;
         let functions = vec![];
 
@@ -330,13 +331,18 @@ mod tests {
         let struct_decl = ASTNodeKind::Statement(StatementKind::StructDeclaration {
             name: struct_name.clone(),
             members: vec![("pos".into(), VarType::Any, false), ("radius".into(), VarType::Any, true)],
-            constructor_args: Some(vec!["pos".into(), "x".into(), "radius".into(), "y".into()]),
+            constructor_args: Some(vec![
+                ("pos".into(), VarType::Any),
+                ("x".into(), VarType::Any),
+                ("radius".into(), VarType::Any),
+                ("y".into(), VarType::Any),
+            ]),
             constructor_body: None,
             functions: vec![],
         });
 
         let struct_create = ExpressionKind::FunctionCall {
-            caller: Box::new(ExpressionKind::Identifier { symbol: "Planet".into() }),
+            name: "Planet".into(),
             args: vec![
                 ExpressionKind::RealLiteral { value: 80. },
                 ExpressionKind::RealLiteral { value: 1. },

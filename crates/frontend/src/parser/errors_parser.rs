@@ -92,7 +92,7 @@ The syntaxe are:
 Even without a constructor, paranthesis are mandatory", "Error".red().bold())]
     MissingParenStructCreation,
 
-    // Functions declaration
+    // Functions
     #[error("{} while parsing function. Expected '(' after function name.", "Error".red().bold())]
     MissingFnOpenParen,
 
@@ -129,6 +129,9 @@ Expected -{0}-, found -{1}-", "Error".red().bold())]
 
     #[error("{} while parsing '{0}' function declaration. Function signature has a return type but no return statement were defined.", "Error".red().bold())]
     ReturnTypeWithoutReturn(String),
+
+    #[error("{} while parsing function call. Function name must an identifier, found: {0}.", "Error".red().bold())]
+    FnNameNotIdent(String),
 
     // Member expressions
     #[error("{} while parsing member. Expected identifier after dot '.' operator.", "Error".red().bold())]
@@ -180,6 +183,9 @@ Syntaxes are:
 
     #[error("if using array slice, at least one index must be given with the ':' token.")]
     NoSliceIdenxWithColon,
+
+    #[error("{} while parsing array call. Array name must an identifier, found: {0}.", "Error".red().bold())]
+    ArrayNameNotIdent(String),
 
     // Test
     #[error("{} while parsing test declaration: missing test name after 'test' keyword: {0}", "Error".red().bold())]

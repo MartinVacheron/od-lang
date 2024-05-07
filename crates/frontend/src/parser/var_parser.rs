@@ -90,34 +90,27 @@ impl Parser {
             TokenKind::Equals => {
                 self.eat()?;
 
-                // We declare the var expecting its value to follow. We check if we create a new struct
-                // if let TokenKind::New = self.at().kind {
-                //     Ok(self
-                //         .parse_struct_creation(var_name, false)
-                //         .map_err(|e| ParserError::ParseVarDecl(e.to_string()))?)
-                // } else {
-                    let declaration = self
-                        .parse_additive_expr()
-                        .map_err(|e| ParserError::ParseVarDecl(e.to_string()))?;
+                let declaration = self
+                    .parse_additive_expr()
+                    .map_err(|e| ParserError::ParseVarDecl(e.to_string()))?;
 
-                    let var_type = self.verify_expr_type(&declaration, var_type)?;
+                let var_type = self.verify_expr_type(&declaration, var_type)?;
 
-                    // Usefull for the case:    var a: real = 1
-                    // We convert the 'int' literal into a 'real' one
-                    let declaration = if var_type == VarType::Real {
-                        // We potentially cast an 'int' literal to go inside 'real'
-                        cast_int_literal_to_real(declaration)
-                    } else {
-                        declaration
-                    };
+                // Usefull for the case:    var a: real = 1
+                // We convert the 'int' literal into a 'real' one
+                let declaration = if var_type == VarType::Real {
+                    // We potentially cast an 'int' literal to go inside 'real'
+                    cast_int_literal_to_real(declaration)
+                } else {
+                    declaration
+                };
 
-                    Ok(StatementKind::VarDeclaration {
-                        name: var_name,
-                        value: declaration,
-                        constant,
-                        var_type,
-                    })
-                // }
+                Ok(StatementKind::VarDeclaration {
+                    name: var_name,
+                    value: declaration,
+                    constant,
+                    var_type,
+                })
             }
             _ => Err(ParserError::ParseVarDecl("expected 'end line' or '=' after var name or type name".into()))
         }
