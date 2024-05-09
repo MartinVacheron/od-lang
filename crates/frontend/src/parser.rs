@@ -28,6 +28,7 @@ pub enum VarType {
     Void
 }
 
+// TODO: Remove panic
 impl VarType {
     // Default value for basic types. Null, fn and structure are themselves
     // their default value
@@ -74,14 +75,12 @@ impl Parser {
 
         while !self.is_eof() {
             // We parse the statements
-            // let stmt = self.parse_statement().map_err(|e| e.context(self.at().line))?;
             let stmt = self
                 .parse_statement()
                 .map_err(|e| e.to_glob_err(self.at().line))?;
 
             if let Some(s) = stmt {
                 // We check for some rules
-                // self.check_current_line_nodes(&s).map_err(|e| e.context(self.at().line))?;
                 self.check_current_line_nodes(&s)
                     .map_err(|e| e.to_glob_err(self.at().line))?;
 
@@ -127,7 +126,7 @@ impl Parser {
                 Ok(Some(ASTNodeKind::from(self.parse_var_declaration()?)))
             }
             TokenKind::Structure => Ok(Some(ASTNodeKind::from(self.parse_struct_declaration()?))),
-            TokenKind::Fn => Ok(Some(ASTNodeKind::from(self.parse_fn_declaration()?))),
+            TokenKind::Fn => Ok(Some(ASTNodeKind::from(self.parse_fn_declaration(false)?))),
             TokenKind::Test => Ok(Some(ASTNodeKind::from(self.parse_test_declaration()?))),
             _ => Ok(Some(ASTNodeKind::from(self.parse_assignment_expr()?))),
         }
@@ -378,6 +377,7 @@ impl Parser {
     }
 
     // Parse syntaxes like:   [], []int, []real, ...
+    // TODO: Recursive parsing for example: [][][]int
     fn parse_array_type(&mut self) -> Result<VarType, ParserError> {
         // We eat the opening '['
         self.expect_token(TokenKind::OpenBracket)?;

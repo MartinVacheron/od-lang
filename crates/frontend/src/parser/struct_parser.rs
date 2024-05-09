@@ -3,7 +3,7 @@ use super::Parser;
 
 use super::TokenKind;
 use super::VarType;
-use super::{ASTNodeKind, ExpressionKind, StatementKind};
+use super::StatementKind;
 
 impl Parser {
     // Structure declaration are:
@@ -34,9 +34,13 @@ impl Parser {
 
         // We collect all the members
         let mut members: Vec<(String, VarType, bool)> = Vec::new();
-        let mut constructor_args: Option<Vec<(String, VarType)>> = None;
-        let mut constructor_body: Option<Vec<ASTNodeKind>> = None;
+        // let mut constructor_args: Option<Vec<(String, VarType)>> = None;
+        // let mut constructor_body: Option<Vec<ASTNodeKind>> = None;
         let mut functions: Vec<StatementKind> = Vec::new();
+
+        let mut has_constructor: bool = false;
+        
+        // let mut constructor: Option<Box<StatementKind>> = None;
 
         // Temporary members to be able to parse a full line et get potential
         // comma declaration. We use it to apply the type at the end of the line
@@ -121,72 +125,50 @@ impl Parser {
                 }
                 // We parse the constructor. It is not mandatory unless there is at least one const member
                 TokenKind::New => {
-                    // We eat the keyword
-                    let _ = self
-                        .eat()
-                        .map_err(|e| ParserError::ConstructorError(format!("{e}")))?;
-
-                    // If we already have a declared constructor
-                    if constructor_args.is_some() {
-                        return Err(ParserError::MultipleConstructor);
+                    if has_constructor {
+                        return Err(ParserError::MultipleConstructor)
+                    } else {
+                        has_constructor = true;
                     }
+                    
+                    let constructor = self.parse_fn_declaration(true)?;
 
-                    // We get all the var names as ExpressionKind
-                    let args = self
-                        .parse_fn_decl_args()
-                        .map_err(|e| ParserError::ConstructorError(format!("{e}")))?;
+                    // TODO: Error check
+                    if let StatementKind::FnDeclaration { args_and_type, return_stmt, return_type, .. } = &constructor {
+                        let args_name = args_and_type.iter().map(|a| &a.0).collect::<Vec<&String>>();
 
-                    // We eat the close paren
-                    self.expect_token(TokenKind::CloseParen)?;
+                        // We get all the constant members
+                        let const_members = members
+                            .iter()
+                            .filter(|m| m.2)
+                            .collect::<Vec<&(String, VarType, bool)>>();
 
-                    let args_name = args.iter().map(|a| &a.0).collect::<Vec<&String>>();
+                        println!("Const members:{:?}", const_members);
+                        println!("All args name:{:?}", args_name);
 
-                    // We get all the constant members
-                    let const_members = members
-                        .iter()
-                        .filter(|m| m.2)
-                        .collect::<Vec<&(String, VarType, bool)>>();
-
-                    // All the constant members must have been declared in the constructor
-                    if !const_members.iter().all(|m| args_name.contains(&&m.0)) {
-                        return Err(ParserError::MissingConstMemberInConstructor)
-                    }
-
-                    // We save the argument names
-                    constructor_args = match args.is_empty() {
-                        true => None,
-                        false => Some(args)
-                    };
-
-                    // Now, we check if there is a body
-                    self.skip_end_lines();
-
-                    // We check if there is a return type '-> <type>'
-                    if self.at().kind == TokenKind::SimpleArrow {
-                        return Err(ParserError::ConstructorWithType)
-                    }
-
-                    if self.at().kind == TokenKind::OpenBrace {
-                        let _ = self.eat()?;
-
-                        // We get the constructor body and return statement
-                        let (c, r) = self.parse_fn_body()?;
-
-                        // If there is a return statement, error
-                        if r.is_some() {
-                            return Err(ParserError::ReturnInConstructor)
+                        // All the constant members must have been declared in the constructor
+                        if !const_members.iter().all(|m| args_name.contains(&&m.0)) {
+                            return Err(ParserError::MissingConstMemberInConstructor)
                         }
 
-                        constructor_body = Some(c);
+                        // We check if there is a return type
+                        if return_type != &VarType::Void {
+                            return Err(ParserError::ConstructorWithType)
+                        }
 
-                        // End of constructor declaration, expect '}'
-                        let _ = self
-                            .expect_token(TokenKind::CloseBrace)
-                            .map_err(|_| ParserError::MissingStructCloseBrace)?;
+                        // We check if there is a return statement
+                        if return_stmt.is_some() {
+                            return Err(ParserError::ConstructorWithType)
+                        }
+
+                        // We save it
+                        functions.push(constructor);
+                    } else {
+                        panic!("Constructor must be a function")
                     }
                 }
                 TokenKind::Fn => {
-                    let function = self.parse_fn_declaration()?;
+                    let function = self.parse_fn_declaration(false)?;
 
                     if let StatementKind::FnDeclaration { .. } = function {
                         functions.push(function);
@@ -205,22 +187,19 @@ impl Parser {
             .expect_token(TokenKind::CloseBrace)
             .map_err(|_| ParserError::MissingStructCloseBrace)?;
 
-        // We check that is we have at least one constant member, there is a constructor declared
         if !members
             .iter()
             .filter(|m| m.2)
             .collect::<Vec<&(String, VarType, bool)>>()
             .is_empty()
-            && constructor_args.is_none()
+            && !has_constructor
         {
-            return Err(ParserError::MissingConstMemberInConstructor);
+            return Err(ParserError::MissingConstMemberInConstructor)
         }
 
         Ok(StatementKind::StructDeclaration {
             name: identifier.value,
             members,
-            constructor_args,
-            constructor_body,
             functions,
         })
     }
@@ -228,8 +207,8 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{ast::ArrayIndexing, lexer::Lexer};
+    use crate::parser::*;
+    use crate::{ast::*, lexer::Lexer};
 
     #[test]
     fn parse_struct_member_declaration() {
@@ -252,9 +231,15 @@ mod tests {
             ASTNodeKind::Statement(StatementKind::StructDeclaration {
                 name: "Planet".to_string(),
                 members: vec![("y".to_string(), VarType::Any, false), ("z".to_string(), VarType::Any, true),],
-                constructor_args: Some(vec![("z".to_string(), VarType::Any)]),
-                constructor_body: None,
-                functions: Vec::new(),
+                functions: vec![
+                    StatementKind::FnDeclaration {
+                        name: "new".into(),
+                        args_and_type: vec![("z".into(), VarType::Any)],
+                        body: vec![],
+                        return_stmt: None,
+                        return_type: VarType::Void
+                    }
+                ],
             })
         );
     }
@@ -348,9 +333,18 @@ mod tests {
             ASTNodeKind::Statement(StatementKind::StructDeclaration {
                 name: "Planet".to_string(),
                 members: vec![("x".to_string(), VarType::Any, false), ("y".to_string(), VarType::Any, false)],
-                constructor_args: Some(vec![("x".to_string(), VarType::Any), ("y".to_string(), VarType::Any)]),
-                constructor_body: None,
-                functions: Vec::new(),
+                functions: vec![
+                    StatementKind::FnDeclaration {
+                        name: "new".into(),
+                        args_and_type: vec![
+                            ("x".into(), VarType::Any),
+                            ("y".into(), VarType::Any),
+                        ],
+                        body: vec![],
+                        return_stmt: None,
+                        return_type: VarType::Void
+                    }
+                ],
             })
         );
     }
@@ -374,14 +368,20 @@ mod tests {
             ASTNodeKind::Statement(StatementKind::StructDeclaration {
                 name: "Planet".to_string(),
                 members: vec![("x".to_string(), VarType::Any, false), ("y".to_string(), VarType::Any, false)],
-                constructor_args: Some(vec![
-                    ("x".to_string(), VarType::Any),
-                    ("y".to_string(), VarType::Any),
-                    ("z".to_string(), VarType::Any),
-                    ("a".to_string(), VarType::Int)
-                ]),
-                constructor_body: None,
-                functions: Vec::new(),
+                functions: vec![
+                    StatementKind::FnDeclaration {
+                        name: "new".into(),
+                        args_and_type: vec![
+                            ("x".into(), VarType::Any),
+                            ("y".into(), VarType::Any),
+                            ("z".into(), VarType::Any),
+                            ("a".into(), VarType::Int),
+                        ],
+                        body: vec![],
+                        return_stmt: None,
+                        return_type: VarType::Void
+                    }
+                ],
             })
         );
     }
@@ -410,11 +410,17 @@ mod tests {
                     ("y".to_string(), VarType::Real, false),
                     ("z".to_string(), VarType::Array(Box::new(VarType::Any)), true),
                 ],
-                constructor_args: Some(vec![
-                    ("z".to_string(), VarType::Any)
-                ]),
-                constructor_body: None,
-                functions: Vec::new(),
+                functions: vec![
+                    StatementKind::FnDeclaration {
+                        name: "new".into(),
+                        args_and_type: vec![
+                            ("z".into(), VarType::Any),
+                        ],
+                        body: vec![],
+                        return_stmt: None,
+                        return_type: VarType::Void
+                    }
+                ],
             })
         );
     }
@@ -446,32 +452,38 @@ mod tests {
                     ("y".to_string(), VarType::Real, false),
                     ("z".to_string(), VarType::Array(Box::new(VarType::Any)), true),
                 ],
-                constructor_args: Some(vec![
-                    ("z".to_string(), VarType::Any)
-                ]),
-                constructor_body: Some(vec![
-                    ASTNodeKind::Expression(ExpressionKind::VarAssignment { 
-                        assigne: Box::new(ExpressionKind::MemberCall {
-                            member: Box::new(ExpressionKind::Identifier { symbol: "self".into() }),
-                            property: Box::new(ExpressionKind::Identifier { symbol: "x".into() })
-                        }),
-                        value: Box::new(ExpressionKind::ArrayCall {
-                            name: "z".into(),
-                            index: ArrayIndexing::Single(Box::new(ExpressionKind::IntLiteral { value: 0 }))
-                        })
-                    }),
-                    ASTNodeKind::Expression(ExpressionKind::VarAssignment { 
-                        assigne: Box::new(ExpressionKind::MemberCall {
-                            member: Box::new(ExpressionKind::Identifier { symbol: "self".into() }),
-                            property: Box::new(ExpressionKind::Identifier { symbol: "y".into() })
-                        }),
-                        value: Box::new(ExpressionKind::ArrayCall {
-                            name: "z".into(),
-                            index: ArrayIndexing::Single(Box::new(ExpressionKind::IntLiteral { value: 1 }))
-                        })
-                    })
-                ]),
-                functions: Vec::new(),
+                functions: vec![
+                    StatementKind::FnDeclaration {
+                        name: "new".into(),
+                        args_and_type: vec![
+                            ("z".into(), VarType::Any),
+                        ],
+                        body: vec![
+                            ExpressionKind::VarAssignment { 
+                                assigne: Box::new(ExpressionKind::MemberCall {
+                                    member: Box::new(ExpressionKind::Identifier { symbol: "self".into() }),
+                                    property: Box::new(ExpressionKind::Identifier { symbol: "x".into() })
+                                }),
+                                value: Box::new(ExpressionKind::ArrayCall {
+                                    name: "z".into(),
+                                    index: ArrayIndexing::Single(Box::new(ExpressionKind::IntLiteral { value: 0 }))
+                                })
+                            }.into(),
+                            ExpressionKind::VarAssignment { 
+                                assigne: Box::new(ExpressionKind::MemberCall {
+                                    member: Box::new(ExpressionKind::Identifier { symbol: "self".into() }),
+                                    property: Box::new(ExpressionKind::Identifier { symbol: "y".into() })
+                                }),
+                                value: Box::new(ExpressionKind::ArrayCall {
+                                    name: "z".into(),
+                                    index: ArrayIndexing::Single(Box::new(ExpressionKind::IntLiteral { value: 1 }))
+                                })
+                            }.into()
+                        ],
+                        return_stmt: None,
+                        return_type: VarType::Void
+                    }
+                ],
             })
         );
     }
@@ -504,17 +516,22 @@ mod tests {
                 members: vec![
                     ("x".to_string(), VarType::Real, false)
                 ],
-                constructor_args: None,
-                constructor_body: Some(vec![
-                    ASTNodeKind::Expression(ExpressionKind::VarAssignment { 
-                        assigne: Box::new(ExpressionKind::MemberCall {
-                            member: Box::new(ExpressionKind::Identifier { symbol: "self".into() }),
-                            property: Box::new(ExpressionKind::Identifier { symbol: "x".into() })
-                        }),
-                        value: Box::new(ExpressionKind::IntLiteral { value: 1 })
-                    })
-                ]),
                 functions: vec![
+                    StatementKind::FnDeclaration {
+                        name: "new".into(),
+                        args_and_type: vec![],
+                        body: vec![
+                            ExpressionKind::VarAssignment { 
+                                assigne: Box::new(ExpressionKind::MemberCall {
+                                    member: Box::new(ExpressionKind::Identifier { symbol: "self".into() }),
+                                    property: Box::new(ExpressionKind::Identifier { symbol: "x".into() })
+                                }),
+                                value: Box::new(ExpressionKind::IntLiteral { value: 1 })
+                            }.into()
+                        ],
+                        return_stmt: None,
+                        return_type: VarType::Void
+                    },
                     StatementKind::FnDeclaration {
                         name: "get_x".into(),
                         args_and_type: vec![
@@ -522,12 +539,12 @@ mod tests {
                             ("b".into(), VarType::Any)
                         ],
                         body: vec![
-                            ASTNodeKind::Statement(StatementKind::VarDeclaration {
+                            StatementKind::VarDeclaration {
                                 name: "foo".into(),
                                 value: ExpressionKind::IntLiteral { value: 5 },
                                 constant: false,
                                 var_type: VarType::Int
-                            })
+                            }.into()
                         ],
                         return_stmt: Some(ExpressionKind::MemberCall {
                             member: Box::new(ExpressionKind::Identifier { symbol: "self".into() }),

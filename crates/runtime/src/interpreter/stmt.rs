@@ -33,11 +33,9 @@ impl Interpreter {
             StatementKind::StructDeclaration {
                 name,
                 members,
-                constructor_args,
-                constructor_body,
                 functions,
             } => {
-                env.declare_struct(name, members, constructor_args, constructor_body, functions)
+                env.declare_struct(name, members, functions)
                     .map_err(|e| InterpreterError::StructDeclaration(format!("{e}")))?;
 
                 Ok(RuntimeVal::Null)
@@ -277,22 +275,26 @@ mod tests {
 
         let name: String = "Planet".into();
         let members = vec![("pos".into(), VarType::Any, false), ("radius".into(), VarType::Any, true)];
-        let constructor_args = vec![
+        let constructor_args: Vec<(String, VarType)> = vec![
             ("pos".into(), VarType::Any),
             ("x".into(), VarType::Any),
             ("radius".into(), VarType::Any),
             ("y".into(), VarType::Any),
         ];
-        let constructor_body = None;
-        let functions = vec![];
 
-        let struct_decl = ASTNodeKind::Statement(StatementKind::StructDeclaration {
+        let constructor = StatementKind::FnDeclaration {
+            name: "new".into(),
+            args_and_type: constructor_args.clone(),
+            body: vec![],
+            return_stmt: None,
+            return_type: VarType::Void
+        };
+
+        let struct_decl: ASTNodeKind = StatementKind::StructDeclaration {
             name: name.clone(),
             members,
-            constructor_args: Some(constructor_args.clone()),
-            constructor_body,
-            functions,
-        });
+            functions: vec![constructor],
+        }.into();
 
         interpr
             .execute_program(vec![ASTNode::new(struct_decl, 0)], &mut env)
@@ -314,8 +316,12 @@ mod tests {
             Rc::new(StructPrototype {
                 name: name.clone(),
                 members: members_expected,
-                constructor_args: Some(constructor_args),
-                constructor_body: None
+                constructor: Some(RuntimeVal::Function {
+                    args_and_type: constructor_args,
+                    body: vec![],
+                    return_stmt: None,
+                    return_type: VarType::Void
+                }),
             }),
             env.lookup_struct_prototype(&name)
                 .expect("Error looking up structure proto")
@@ -327,19 +333,28 @@ mod tests {
         let interpr = Interpreter {};
         let mut env = Env::new(None);
 
-        let struct_name = String::from("Planet");
-        let struct_decl = ASTNodeKind::Statement(StatementKind::StructDeclaration {
-            name: struct_name.clone(),
+        let name = String::from("Planet");
+
+        let constructor_args = vec![
+            ("pos".into(), VarType::Any),
+            ("x".into(), VarType::Any),
+            ("radius".into(), VarType::Any),
+            ("y".into(), VarType::Any),
+        ];
+
+        let constructor = StatementKind::FnDeclaration {
+            name: "new".into(),
+            args_and_type: constructor_args.clone(),
+            body: vec![],
+            return_stmt: None,
+            return_type: VarType::Void
+        };
+
+        let struct_decl: ASTNodeKind = StatementKind::StructDeclaration {
+            name: name.clone(),
             members: vec![("pos".into(), VarType::Any, false), ("radius".into(), VarType::Any, true)],
-            constructor_args: Some(vec![
-                ("pos".into(), VarType::Any),
-                ("x".into(), VarType::Any),
-                ("radius".into(), VarType::Any),
-                ("y".into(), VarType::Any),
-            ]),
-            constructor_body: None,
-            functions: vec![],
-        });
+            functions: vec![constructor],
+        }.into();
 
         let struct_create = ExpressionKind::FunctionCall {
             name: "Planet".into(),

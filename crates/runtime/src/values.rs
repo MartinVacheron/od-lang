@@ -158,6 +158,12 @@ impl PartialEq for RuntimeVal {
                 let args: Vec<RuntimeVal> = vec![RuntimeVal::Real(80.)];
                 fa(&args) == fb(&args)
             }
+            (
+                RuntimeVal::Function { args_and_type: args1, body: b1, return_stmt: ret1, return_type: ret_t1 },
+                RuntimeVal::Function { args_and_type: args2, body: b2, return_stmt: ret2, return_type: ret_t2 }
+            ) => {
+                args1 == args2 && b1 == b2 && ret1 == ret2 && ret_t1 == ret_t2
+            }
             _ => false,
         }
     }
@@ -250,7 +256,7 @@ impl RuntimeVal {
     }
 
     // Fetch the sub member as far as it is and assign a new value
-    // TODO: test
+    // TODO: remove and replace by new functions in stmt
     pub fn assign_sub_member(
         &mut self,
         members_list: &mut Vec<String>,
@@ -377,8 +383,9 @@ where T : Add<Output = T> + Sub<Output = T> + Mul<Output = T> + Div<Output = T> 
 pub struct StructPrototype {
     pub name: String,
     pub members: Vec<StructMember>,
-    pub constructor_args: Option<Vec<(String, VarType)>>,
-    pub constructor_body: Option<Vec<ASTNodeKind>>,
+    pub constructor: Option<RuntimeVal>
+    // pub constructor_args: Option<Vec<(String, VarType)>>,
+    // pub constructor_body: Option<Vec<ASTNodeKind>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -388,6 +395,7 @@ pub struct StructMember {
     pub constant: bool,
     pub member_type: VarType
 }
+
 
 impl StructPrototype {
     // Iterate over all members

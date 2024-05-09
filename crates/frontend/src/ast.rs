@@ -47,8 +47,6 @@ pub enum StatementKind {
         name: String,
         // Vector of member name + type + constant or not
         members: Vec<(String, VarType, bool)>,
-        constructor_args: Option<Vec<(String, VarType)>>,
-        constructor_body: Option<Vec<ASTNodeKind>>,
         // Vec of StatementKind::FnDeclaration
         functions: Vec<StatementKind>,
     },
@@ -130,37 +128,6 @@ pub enum ArrayIndexing {
 }
 
 impl ExpressionKind {
-    // Get first and last identifier name of the chain call
-    // For example, get "planet" and "x" of planet.pos.exact.x
-    pub fn get_first_and_last(&self) -> (Option<String>, Option<String>) {
-        // Recursively extracts "planet"
-        fn get_first(expr: &ExpressionKind) -> Option<String> {
-            match expr {
-                ExpressionKind::MemberCall { member, .. } => get_first(member),
-                ExpressionKind::Identifier { symbol, .. } => Some(symbol.clone()),
-                _ => None,
-            }
-        }
-
-        match self {
-            ExpressionKind::MemberCall {
-                member, property, ..
-            } => {
-                if let ExpressionKind::Identifier { symbol, .. } = &**property {
-                    let val = get_first(member);
-
-                    if let Some(v) = val {
-                        return (Some(v), Some(symbol.clone()));
-                    }
-                }
-
-                (None, None)
-            }
-            ExpressionKind::Identifier { symbol, .. } => (None, Some(symbol.to_string())),
-            _ => (None, None),
-        }
-    }
-
     // Get type of Expr
     pub(super) fn get_expr_type(&self) -> VarType {
         match self {
@@ -174,44 +141,5 @@ impl ExpressionKind {
             ExpressionKind::ArrayLiteral { .. } => VarType::Array(Box::new(VarType::Any)),
             _ => VarType::Any
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn get_first_and_last_member_expr() {
-        // We are gonna build this expression: planet.pos.exact.x
-        let lv0 = ExpressionKind::MemberCall {
-            member: Box::new(ExpressionKind::Identifier {
-                symbol: "planet".into(),
-            }),
-            property: Box::new(ExpressionKind::Identifier {
-                symbol: "pos".into(),
-            }),
-        };
-        let lv1 = ExpressionKind::MemberCall {
-            member: Box::new(lv0),
-            property: Box::new(ExpressionKind::Identifier { symbol: "x".into() }),
-        };
-
-        assert_eq!(
-            (Some(String::from("planet")), Some(String::from("x"))),
-            lv1.get_first_and_last()
-        );
-
-        // We are gonna build this expression: planet.pos.exact.x.and_more
-        let lv2 = ExpressionKind::MemberCall {
-            member: Box::new(lv1),
-            property: Box::new(ExpressionKind::Identifier {
-                symbol: "and_more".into(),
-            }),
-        };
-        assert_eq!(
-            (Some(String::from("planet")), Some(String::from("and_more"))),
-            lv2.get_first_and_last()
-        );
     }
 }

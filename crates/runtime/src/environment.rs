@@ -1,5 +1,4 @@
 use colored::*;
-use frontend::ast::ExpressionKind;
 use std::rc::Rc;
 use std::result::Result;
 use std::{
@@ -12,7 +11,7 @@ use std::{
 use thiserror::Error;
 
 use crate::frontend::{
-    ast::{ASTNodeKind, StatementKind},
+    ast::StatementKind,
     parser::VarType
 };
 
@@ -312,8 +311,6 @@ impl<'a> Env<'a> {
         &mut self,
         name: String,
         members: Vec<(String, VarType, bool)>,
-        constructor_args: Option<Vec<(String, VarType)>>,
-        constructor_body: Option<Vec<ASTNodeKind>>,
         functions: Vec<StatementKind>,
     ) -> Result<(), EnvError> {
         // We check if the var is not already in the map
@@ -340,8 +337,7 @@ impl<'a> Env<'a> {
                 runtime_struct.members.push(struct_member)
             }
 
-            // We do the same for functions
-            // FIXME: Using name of extraction here of declare_struct arg?
+            // We do the same for functions, including constructor
             for function in functions {
                 if let StatementKind::FnDeclaration {
                     name,
@@ -351,24 +347,33 @@ impl<'a> Env<'a> {
                     return_type
                 } = function
                 {
-                    runtime_struct.members.push(
-                        StructMember {
-                            name,
-                            value: RuntimeVal::Function {
+                    match name.as_str() {
+                        "new" => {
+                            runtime_struct.constructor = Some(RuntimeVal::Function {
                                 args_and_type,
                                 body,
-                                return_stmt,
-                                return_type
-                            },
-                            constant: true,
-                            member_type: VarType::Func
+                                return_stmt: None,
+                                return_type: VarType::Void
+                            });
                         }
-                    );
+                        _ => {
+                            runtime_struct.members.push(
+                                StructMember {
+                                    name,
+                                    value: RuntimeVal::Function {
+                                        args_and_type,
+                                        body,
+                                        return_stmt,
+                                        return_type
+                                    },
+                                    constant: true,
+                                    member_type: VarType::Func
+                                }
+                            );
+                        }
+                    }
                 }
             }
-
-            runtime_struct.constructor_args = constructor_args;
-            runtime_struct.constructor_body = constructor_body;
 
             // We save the name
             runtime_struct.name = name;
@@ -569,7 +574,7 @@ mod tests {
             ("radius".to_string(), VarType::Any, true),
         ];
 
-        env.declare_struct(struct_name.clone(), membres, None, None, vec![])
+        env.declare_struct(struct_name.clone(), membres, vec![])
             .unwrap();
 
         let mut struct_proto_members: Vec<StructMember> = vec![
@@ -588,8 +593,7 @@ mod tests {
             Rc::new(StructPrototype {
                 name: struct_name,
                 members: struct_proto_members,
-                constructor_args: None,
-                constructor_body: None
+                constructor: None
             })
         );
     }
@@ -603,7 +607,7 @@ mod tests {
             ("radius".to_string(), VarType::Any, true),
         ];
 
-        env.declare_struct(struct_name.clone(), membres, None, None, vec![])
+        env.declare_struct(struct_name.clone(), membres, vec![])
             .unwrap();
 
         let mut struct_proto_members: Vec<StructMember> = vec![
@@ -622,8 +626,7 @@ mod tests {
             Rc::new(StructPrototype {
                 name: struct_name,
                 members: struct_proto_members,
-                constructor_args: None,
-                constructor_body: None
+                constructor: None
             })
         );
     }

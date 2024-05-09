@@ -44,24 +44,26 @@ impl Parser {
         }
     }
 
+    // Parse single variable declaration. We get the name of the variable
     fn parse_single_var_decl(
         &mut self,
         var_name: String,
         constant: bool,
-    ) -> Result<StatementKind, ParserError> {
-        // If there is no value in declaration like: const x
+    ) -> Result<StatementKind, ParserError>
+    {
+        // If there is no value in constant declaration like: const x
         if self.at().kind == TokenKind::EndLine && constant {
             // But this is not possible with constants declaration
-            return Err(ParserError::ConstVarNoVal(var_name));
+            return Err(ParserError::ConstVarNoVal(var_name))
         }
 
         // We get the var type
         let var_type = self.parse_type_after_token(TokenKind::Colon)?;
 
-        // If there is no value in declaration like: const x: int
+        // If there is no value in typed constant declaration like: const x: int
         if self.at().kind == TokenKind::EndLine && constant {
             // But this is not possible with constants declaration
-            return Err(ParserError::ConstVarNoVal(var_name));
+            return Err(ParserError::ConstVarNoVal(var_name))
         }
 
         // Check for use of 'void' on variables
@@ -71,7 +73,7 @@ impl Parser {
 
         // All cases
         match self.at().kind {
-            // End of line
+            // End of line, no value
             TokenKind::EndLine => {
                 // We extract the type and put any if there is no type
                 let var_type = match var_type {
@@ -80,17 +82,18 @@ impl Parser {
                 };
 
                 // So no initialization value, we are gonna give one ourself
-                  Ok(StatementKind::VarDeclaration {
+                Ok(StatementKind::VarDeclaration {
                     name: var_name,
                     value: var_type.get_default_value(),
                     constant,
                     var_type,
                 })
             }
+            // Value assignment
             TokenKind::Equals => {
                 self.eat()?;
 
-                let declaration = self
+                let mut declaration = self
                     .parse_additive_expr()
                     .map_err(|e| ParserError::ParseVarDecl(e.to_string()))?;
 
@@ -98,12 +101,10 @@ impl Parser {
 
                 // Usefull for the case:    var a: real = 1
                 // We convert the 'int' literal into a 'real' one
-                let declaration = if var_type == VarType::Real {
+                if var_type == VarType::Real {
                     // We potentially cast an 'int' literal to go inside 'real'
-                    cast_int_literal_to_real(declaration)
-                } else {
-                    declaration
-                };
+                    declaration = cast_int_literal_to_real(declaration)
+                }
 
                 Ok(StatementKind::VarDeclaration {
                     name: var_name,
@@ -116,11 +117,13 @@ impl Parser {
         }
     }
 
+    // Comma separated variables declaration. Begins after we parsed the first variable's name
     fn parse_comma_declaration(
         &mut self,
         first_ident: String,
         constant: bool,
-    ) -> Result<StatementKind, ParserError> {
+    ) -> Result<StatementKind, ParserError>
+    {
         // All of variable names
         let mut other_idents: Vec<String> = vec![first_ident];
 
@@ -248,45 +251,46 @@ impl Parser {
     }
 
     // Verifies that an expression has the same type as the variable assigned
+    // If no type specified for the variable, returns the type of the expr
     pub(super) fn verify_expr_type(&self, expr: &ExpressionKind, var_type: Option<VarType>) -> Result<VarType, ParserError> {
-        if let Some(t) = var_type {
-            // If the variable is 'any' type, no problem
-            if t == VarType::Any {
-                return Ok(t)
-            }
-
-            match expr.get_expr_type() {
-                // We allow implicit cast from int to real
-                VarType::Int => if t != VarType::Int && t != VarType::Real {
-                    return Err(ParserError::WrongVarType(t.to_string(), "int".into()))
-                },
-                VarType::Real => if t != VarType::Real {
-                    return Err(ParserError::WrongVarType(t.to_string(), "real".into()))
-                },
-                VarType::Bool => if t != VarType::Bool {
-                    return Err(ParserError::WrongVarType(t.to_string(), "bool".into()))
-                },
-                VarType::Array(..) => if !matches!(t, VarType::Array(..)) {
-                    return Err(ParserError::WrongVarType(t.to_string(), "array".into()))
-                },
-                _ => if t == VarType::Void {
-                        return Err(ParserError::WrongVarType(t.to_string(), "void".into()))
+        match var_type {
+            Some(t) => {
+                // If the variable is 'any' type, no problem
+                if t == VarType::Any {
+                    return Ok(t)
                 }
-            };
-
-            Ok(t)
-        } else {
-            Ok(expr.get_expr_type())
+    
+                match expr.get_expr_type() {
+                    // We allow implicit cast from int to real
+                    VarType::Int => if t != VarType::Int && t != VarType::Real {
+                        return Err(ParserError::WrongVarType(t.to_string(), "int".into()))
+                    },
+                    VarType::Real => if t != VarType::Real {
+                        return Err(ParserError::WrongVarType(t.to_string(), "real".into()))
+                    },
+                    VarType::Bool => if t != VarType::Bool {
+                        return Err(ParserError::WrongVarType(t.to_string(), "bool".into()))
+                    },
+                    VarType::Array(..) => if !matches!(t, VarType::Array(..)) {
+                        return Err(ParserError::WrongVarType(t.to_string(), "array".into()))
+                    },
+                    _ => if t == VarType::Void {
+                        return Err(ParserError::WrongVarType(t.to_string(), "void".into()))
+                    }
+                };
+    
+                Ok(t)
+            },
+            None => Ok(expr.get_expr_type())
         }
     }
-
 }
 
+// If the expression is an IntLiteral, cast it to a RealLiteral
 pub(super) fn cast_int_literal_to_real(expr: ExpressionKind) -> ExpressionKind {
-    if let ExpressionKind::IntLiteral { value } = expr {
-        ExpressionKind::RealLiteral { value: value as f64 }
-    } else {
-        expr
+    match expr {
+        ExpressionKind::IntLiteral { value } => ExpressionKind::RealLiteral { value: value as f64 },
+        _ => expr
     }
 }
 

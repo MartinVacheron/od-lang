@@ -20,13 +20,22 @@ impl Parser {
     //
     //    return z * 2
     //}
-    pub(super) fn parse_fn_declaration(&mut self) -> Result<StatementKind, ParserError> {
-        // We eat the 'fn' keyword
-        let _ = self.expect_token(TokenKind::Fn)?;
+    pub(super) fn parse_fn_declaration(&mut self, parse_constructor: bool) -> Result<StatementKind, ParserError> {
+        // Token we expect to eat (case parsing constructor or not)
+        let token_expected: TokenKind;
+
+        // Cases constructor or not
+        if parse_constructor {
+            token_expected = TokenKind::New;
+        } else {
+            token_expected = TokenKind::Identifier;
+
+            let _ = self.expect_token(TokenKind::Fn)?;
+        }
 
         // We get the function name
         let identifier = self
-            .expect_token(TokenKind::Identifier)
+            .expect_token(token_expected)
             .map_err(|_| ParserError::MissingIdentifierAfterFn)?;
 
         // We get argument with their optional type
@@ -39,34 +48,60 @@ impl Parser {
             .expect_token(TokenKind::CloseParen)
             .map_err(|_| ParserError::MissingFnCloseParen)?;
 
-        let return_type = self.parse_type_after_token(TokenKind::SimpleArrow)?;
+        let tmp_return_type = self.parse_type_after_token(TokenKind::SimpleArrow)?;
 
-        // We expect function body starting with '{'
-        let _ = self
-            .expect_token(TokenKind::OpenBrace)
-            .map_err(|_| ParserError::MissingFnOpenBrace)?;
+        let mut body: Vec<ASTNodeKind> = vec![];
+        let mut return_stmt: Option<ExpressionKind> = None;
+        let return_type: VarType;
 
-        // We get all the statements in the function's body
-        let (body, return_stmt) = self.parse_fn_body()?;
+        // Two cases:
+        // We are at an open brace to parse function body:
+        //  -> mandatory for function
+        //  -> optional for constructor
+        // We are at anything else (so no function body):
+        //  -> not possible if normal function
+        //  -> possible for constructor
+        match self.at().kind {
+            TokenKind::OpenBrace => {
+                self.eat()?;
 
-        // Check for type coherence in simple return cases
-        // For example: fn add() -> int { return true }  // Error
-        let return_type = if return_stmt.is_some() {
-            self.verify_expr_type(&return_stmt.clone().unwrap(), return_type)?
-        } else {
-            // If there is no return statement and an non-void return type, error
-            if return_type != Some(VarType::Void) && return_type != None {
-                return Err(ParserError::ReturnTypeWithoutReturn(identifier.value))
+                // We get all the statements in the function's body
+                (body, return_stmt) = self.parse_fn_body()?;
+
+                // Check for type coherence in simple return cases
+                // For example: fn add() -> int { return true }  // Error
+
+                // If there is a return statement, check the returned typed w/ return stmt
+                if return_stmt.is_some() {
+                    return_type = self.verify_expr_type(&return_stmt.clone().unwrap(), tmp_return_type)?
+                } else {
+                    // If there is no return statement and an non-void return type, error
+                    if tmp_return_type != Some(VarType::Void) && tmp_return_type != None {
+                        return Err(ParserError::ReturnTypeWithoutReturn(identifier.value))
+                    }
+
+                    // If no return statement, it is void
+                    return_type = VarType::Void;
+                };
+
+                // We expect function body ending with '}'
+                let _ = self
+                    .expect_token(TokenKind::CloseBrace)
+                    .map_err(|_| ParserError::MissingFnCloseBrace)?;
             }
+            _ => {
+                // Only if we dont parse the constructor we can have an empty body
+                if !parse_constructor {
+                    return Err(ParserError::MissingFnOpenBrace)
+                }
 
-            // If no return statement but type declared, error
-            VarType::Any
-        };
-
-        // We expect function body ending with '}'
-        let _ = self
-            .expect_token(TokenKind::CloseBrace)
-            .map_err(|_| ParserError::MissingFnCloseBrace)?;
+                // For function, if there is no type it is an implicit void
+                return_type = match tmp_return_type {
+                    Some(t) => t,
+                    None => VarType::Void
+                };
+            }
+        }
 
         Ok(StatementKind::FnDeclaration {
             name: identifier.value,
@@ -298,7 +333,7 @@ mod tests {
         }) = &fn_decl.node
         {
             assert!(return_stmt.is_none());
-            assert_eq!(return_type, &VarType::Any);
+            assert_eq!(return_type, &VarType::Void);
         } else {
             assert!(false);
         }
