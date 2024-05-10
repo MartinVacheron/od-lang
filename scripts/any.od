@@ -35,30 +35,31 @@ struct vec2 {
 	}
 }
 
-struct Glob {
-	var p: Planet
+// struct Glob {
+// 	var p: Planet
 
-	new(p)
+// 	new(p)
 
-	fn get_p() {
-		return self.p
-	}
-}
+// 	fn get_p() {
+// 		return self.p
+// 	}
+// }
 
-struct Top {
-	var glob: Glob
-	new(glob)
-}
+// struct Top {
+// 	var glob: Glob
+// 	new(glob)
+// }
 
-fn get_8() -> int {
-	return 8
-}
+// fn get_8() -> int {
+// 	return 8
+// }
 
 var satelites: [] = [Sat(vec2(56, 89)), Sat(vec2(-5, 999)), Sat(vec2(-54765, 10345))]
 
+// var mars = Planet(vec2(1, 2), 50, [])
 var mars = Planet(vec2(1, 2), 50, satelites)
-var glob = Glob(mars)
-var top = Top(glob)
+// // var glob = Glob(mars)
+// var top = Top(glob)
 
 // echo()
 // var a = top.glob.p.pos.add(1, 3)
@@ -73,12 +74,12 @@ var top = Top(glob)
 // var t1 = top.glob.p.sat[2]
 // echo(t1)
 // var t1 = top.glob.p.sat[0].orbite.x
-var t1 = top.glob.p
-echo()
-echo()
-echo()
-echo()
-echo()
+// var t1 = top.glob.p
+// echo()
+// echo()
+// echo()
+// echo()
+// echo()
 // echo(t1)
 // var t3 = top.glob.p.sat[0].orbite.add()
 // echo(t2)

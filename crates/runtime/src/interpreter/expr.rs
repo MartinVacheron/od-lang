@@ -59,6 +59,7 @@ impl Interpreter {
             // TODO: Test
             // TODO: use new memcall parser
             ExpressionKind::VarAssignment { assigne, value } => {
+                println!("\nIn var assign, value to assign is: {:?}", value);
                 let assignment_value = self.evaluate(*value, env)?;
 
                 match *assigne {
@@ -69,6 +70,7 @@ impl Interpreter {
                         Ok(assignment_value)
                     }
                     ExpressionKind::MemberCall { member, property } => {
+                        println!("In var assign");
                         let props = parse_mem_call(&*member, &*property)?;
                         
                         // Cloning for same reason than above
@@ -132,9 +134,10 @@ impl Interpreter {
                 //     }
                 // }
 
-                // We check first for simple cases
+                // We check first for simple cases:
+                //   foo.bar()  ->  member Identifier, property FnCall
+                //   foo.bar    ->  member Identifier, property Identifier
                 match &*m1 {
-                    // Identifier function calls could be either on a struct or an array
                     ExpressionKind::Identifier { symbol } => {
                         match &*property {
                             ExpressionKind::FunctionCall { name, args: args_expr } => {
@@ -143,6 +146,9 @@ impl Interpreter {
                                 // We take &mut because some methods modify the array
                                 let var = env.lookup_mut_var(&symbol)?;
 
+                                // Identifier function calls could be either on a struct or an array
+                                //   a.foo()  ->  a being a structure
+                                //   a.push() ->  a being an array
                                 match var {
                                      RuntimeVal::Array(arr) => arr.call(name.as_str(), args.as_slice()).map_err(|e| InterpreterError::ArrayGetFnCall(e)),
                                      RuntimeVal::Structure { prototype, members } => {
@@ -174,7 +180,18 @@ impl Interpreter {
                                     _ => todo!("Error calling fn on neither a struct or an array")
                                 }
                             }
-                            _ => todo!("Can't be anuthing else than a function call on an identifier member expression")
+                            ExpressionKind::Identifier { symbol: s2 } => {
+                                // We get the var and we expect a structure
+                                let var = env.lookup_var(&symbol)?;
+
+                                match var {
+                                    RuntimeVal::Structure { members, .. } => {
+                                        Ok(members.borrow().get(s2).unwrap().clone())
+                                    }
+                                    _ => panic!("Member call on a non structure var")
+                                }
+                            }
+                            _ => todo!("Can't be anything else than a function call on an identifier member expression")
                         }
                     }
                     ExpressionKind::ArrayCall { name, index } => {
@@ -526,6 +543,7 @@ impl Interpreter {
                 })?;
 
                 for stmt in body {
+                    println!("\nStmt in struct decl: {:?}", stmt);
                     let _ = self.interpret_node(stmt.clone(), env)?;
                 }
             }
@@ -642,60 +660,100 @@ impl Interpreter {
         println!("First: {:#?}", first_var);
         println!("Chain: {:#?}", all_sub_mem);
 
-        let mut final_members = match first_var {
-            RuntimeVal::Structure { members, .. } => {
-                members.clone()
+        let mut final_proto;
+        let mut final_members;
+
+        match first_var {
+            RuntimeVal::Structure { prototype, members } => {
+                final_proto = prototype.clone();
+                final_members = members.clone();
             },
             _ => panic!("impossible to be here")
         };
 
-        // if all_sub_mem.len() > 0 {
-        //     if let ExpressionKind::Identifier { symbol } = all_sub_mem.last().unwrap() {
-        //         let mut bor = final_members.borrow_mut();
-        //         last_mem = bor.get_mut(symbol).unwrap();
-        //     }
-        // }
         for sub_mem in all_sub_mem {
             match sub_mem {
                 ExpressionKind::Identifier { symbol } => {
                     if let RuntimeVal::Structure { prototype, members } = final_members.clone().borrow().get(&symbol).unwrap() {
+                        final_proto = prototype.clone();
                         final_members = members.clone();
+                    } else {
+                        todo!("Not a struct member call chain")
                     }
                 }
                 _ => panic!("impossible to be here")
             }
         }
 
+        println!("Final member: {:?}", final_members);
+
+        // 'final borrow' is the RefCell of members of last struct of chain
         match property {
             ExpressionKind::FunctionCall { name, args: args_expr } => {
-                match final_members.borrow_mut().get_mut(name).unwrap() {
-                    RuntimeVal::Structure { prototype, members } => {
-                        if let RuntimeVal::Function {
-                            args_and_type,
-                            body,
-                            return_stmt,
-                            return_type
-                        } = members.borrow().get(name).unwrap()
-                        {
-                            let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
+                let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
 
-                            match self.execute_fn_in_env(args_and_type.clone(), args, name.clone(), body.clone(), return_stmt.clone(), env)? {
-                                Some(r) => Ok(r),
-                                None => Ok(RuntimeVal::Null)
-                            }
-                        } else { panic!("flemme") }
-                    }
-                    RuntimeVal::Array(arr) => {
-                        // We evaluate each of the argument
-                        let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
+                // We get the function signature in the members
+                // TODO: create self
+                println!("In member call resolve, fn call on struct, self create");
+                env.create_self(final_proto.clone(), final_members.clone())?;
 
-                        Ok(arr.call(name.as_str(), args.as_slice())?)
+                // drop(final_members);
+
+                // FIXME: Double borrow with the execute in env after because of 'self' create...
+                // To fix, we have to change the assignment process so its not the value that does
+                // it but same fn as this one, so one owner?
+                if let RuntimeVal::Function { args_and_type, body, return_stmt, ..} = final_members.borrow().get(name).unwrap() {
+                    println!("In member call resolve, fn call on struct");
+
+                    match self.execute_fn_in_env(args_and_type.clone(), args, name.clone(), body.clone(), return_stmt.clone(), env)? {
+                        Some(r) => Ok(r),
+                        None => Ok(RuntimeVal::Null)
                     }
-                    _ => Err(InterpreterError::ArrayNonMethodCall)
+                // TODO: support fn call on arrays
+                } else {
+                    panic!("Function not found on structure fn member call")
                 }
+
             }
-            _ => panic!("No more choices")
+            ExpressionKind::Identifier { symbol } => {
+                Ok(final_members.borrow().get(symbol).unwrap().clone())
+            }
+            _ => panic!("Property called is neither a fn or member: {:?}", property)
         }
+
+        // match property {
+        //     ExpressionKind::FunctionCall { name, args: args_expr } => {
+        //         match final_members.borrow_mut().get_mut(name).unwrap() {
+        //             RuntimeVal::Structure { prototype, members } => {
+        //                 if let RuntimeVal::Function {
+        //                     args_and_type,
+        //                     body,
+        //                     return_stmt,
+        //                     return_type
+        //                 } = members.borrow().get(name).unwrap()
+        //                 {
+        //                     let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
+
+        //                     match self.execute_fn_in_env(args_and_type.clone(), args, name.clone(), body.clone(), return_stmt.clone(), env)? {
+        //                         Some(r) => Ok(r),
+        //                         None => Ok(RuntimeVal::Null)
+        //                     }
+        //                 } else { panic!("flemme") }
+        //             }
+        //             RuntimeVal::Array(arr) => {
+        //                 // We evaluate each of the argument
+        //                 let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
+
+        //                 Ok(arr.call(name.as_str(), args.as_slice())?)
+        //             }
+        //             _ => panic!("Non struct or array member fn call")
+        //         }
+        //     }
+        //     ExpressionKind::Identifier { symbol } => {
+        //         Ok(final_members.borrow().get(symbol).unwrap().clone())
+        //     }
+        //     _ => panic!("No more choices for: {:?}", property)
+        // }
         
 
         // if let ExpressionKind::Identifier { symbol } = last_name {
