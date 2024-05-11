@@ -53,7 +53,7 @@ impl Display for VarType {
             VarType::Int => write!(f, "int"),
             VarType::Real => write!(f, "real"),
             VarType::Bool => write!(f, "bool"),
-            VarType::Array(u) => write!(f, "array {}", *u),
+            VarType::Array(u) => write!(f, "[]{}", *u),
             VarType::Struct(name) =>  write!(f, "{}", name),
             VarType::Func =>  write!(f, "function"),
             VarType::Void =>  write!(f, "void"),

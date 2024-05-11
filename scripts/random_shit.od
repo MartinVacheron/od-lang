@@ -1,0 +1,27 @@
+type Expr = BinOp | IntLiteral | RealLiteral
+
+def Expr {
+    fn to_str() -> str {
+        return case self {
+            BinOp -> <b> {
+                fmt(
+                    "%s %s %s",
+                    b.left,
+                    b.operator,
+                    b.right
+                )
+            }
+        }
+    }
+}
+
+type Expr {
+    self: BinOp | IntLiteral | RealLiteral
+
+    fn to_str() -> str {
+        case self {
+            BinOp -> <b> b.right
+            
+        }
+    }
+}

@@ -75,10 +75,40 @@ impl Display for RuntimeVal {
             RuntimeVal::Real(nb) => write!(f, "{}", nb),
             RuntimeVal::Array(arr) => {
                 if arr.val.len() > 0 {
+                    let mut is_struct_array: bool = false;
+
                     write!(f, "[")?;
 
                     for (idx, val) in arr.val.iter().enumerate() {
-                        write!(f, "{}", val)?;
+                        // If it is a structure, we add a line return for readability
+                        let val_fmt = match val {
+                            RuntimeVal::Structure { .. } => {
+                                // We mark it as struct array
+                                is_struct_array = true;
+
+                                // We find all the lines return
+                                let mut tmp_fmt = format!("{}", val);
+
+                                let indices = tmp_fmt
+                                    .bytes()
+                                    .enumerate()
+                                    .filter(|(_, b)| *b == b'\n')
+                                    .map(|(i, _)| i+1)
+                                    .collect::<Vec<_>>();
+
+                                // We add a level of identation at each end line for beautiful printing
+                                // We add the number of added char because each insertion increases the
+                                // string length
+                                for (i, index) in indices.iter().enumerate() {
+                                    tmp_fmt.insert(index + i, '\t');
+                                }
+
+                                format!("\n\t{}", tmp_fmt)
+                            },
+                            _ => format!("{}", val)
+                        };
+
+                        write!(f, "{}", val_fmt)?;
 
                         // We write a comma only if there is another value after
                         if idx != arr.val.len() - 1 {
@@ -86,16 +116,18 @@ impl Display for RuntimeVal {
                         }
                     }
 
-                    write!(f, "]")?;
-
-                    Ok(())
+                    if is_struct_array {
+                        write!(f, "\n]")
+                    } else {
+                        write!(f, "]")
+                    }
                 } else {
                     write!(f, "[]")
                 }
             },
             RuntimeVal::Bool(b) => write!(f, "{}", b),
             RuntimeVal::Structure { prototype, members } => {
-                write!(f, "\nStructure: {}\n", prototype.name)?;
+                write!(f, "struct: {} {{\n", prototype.name)?;
 
                 let mut members_str:Vec<String> = vec![];
                 let mut functions_str:Vec<String> = vec![];
@@ -106,24 +138,39 @@ impl Display for RuntimeVal {
                         _ => {
                             let const_kw = if prototype.is_member_const(mem_name) { "const" } else { "var  " };
                             let mem_type = mem_val.get_type();
-                            members_str.push(format!("\t{} {}: {} = {}\n", const_kw, mem_name, mem_type, mem_val));
+
+                            // If structure, we format it to be able to ident it
+                            let mut mem_val_fmt = format!("{}", mem_val);
+
+                            // If this is a structure
+                            if matches!(mem_type, VarType::Struct(_)) || matches!(mem_type, VarType::Array(_)) {
+                                // We find all the lines return
+                                let indices = mem_val_fmt
+                                    .bytes()
+                                    .enumerate()
+                                    .filter(|(_, b)| *b == b'\n')
+                                    .map(|(i, _)| i+1)
+                                    .collect::<Vec<_>>();
+
+                                // We add a level of identation at each end line for beautiful printing
+                                // We add the number of added char because each insertion increases the
+                                // string length
+                                for (i, index) in indices.iter().enumerate() {
+                                    mem_val_fmt.insert(index + i, '\t');
+                                }
+                            }
+
+                            members_str.push(format!("\t{} {}: {} = {}\n", const_kw, mem_name, mem_type, mem_val_fmt));
                         }
                     }
                 }
 
                 // We write all members
-                write!(f, "Members:\n")?;
                 for mem_str in members_str {
                     write!(f, "{}", mem_str)?;
                 }
 
-                // We write all functions
-                write!(f, "Functions:\n")?;
-                for fn_str in functions_str {
-                    write!(f, "\t{}\n", fn_str)?;
-                }
-
-                Ok(())
+                write!(f, "}}")
             },
             RuntimeVal::PlaceholderStruct { prototype } => {
                 write!(f, "\nStructure: {}, uninitialized\n", prototype.name)

@@ -26,10 +26,13 @@ struct vec2 {
 	new(x: real, y: real)
 
 	fn add(x: int, y: int) -> int {
-		return x + y
+		return self.x + y
 	}
 
 	fn div2() {
+		var a = self.y + self.x * 10000
+		echo(a)
+		
 		self.x /= 2.
 		self.y /= 2.
 	}

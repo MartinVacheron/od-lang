@@ -245,6 +245,14 @@ impl<'a> Env<'a> {
         }
     }
 
+    pub fn assign_to_self(&mut self, member: &String, value: RuntimeVal) {
+        if let Occupied(mut e) = self.vars.entry("self".into()) {
+            if let RuntimeVal::Structure { prototype, members } = e.get_mut() {
+                let _ = members.borrow_mut().insert(member.clone(), value);
+            }
+        }
+    }
+
     // Assign a new value to an existing var that is a sub member (case of struct)
     pub fn assign_struct_var(
         &mut self,
