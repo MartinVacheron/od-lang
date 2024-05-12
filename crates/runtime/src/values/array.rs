@@ -152,7 +152,7 @@ impl ArrayType {
     }
 
     // Checks the value of index and convert the < 0 ones
-    fn check_and_get_index(&self, idx: i64) -> Result<usize, ValueError> {
+    pub fn check_and_get_index(&self, idx: i64) -> Result<usize, ValueError> {
         // If index is < 0, we convert it to fetch from the bottom
         // Ex: a = [1, 2, 3, 4]     len() = 4
         // a[-1] <=> a[3] <=> a[len() + -1]

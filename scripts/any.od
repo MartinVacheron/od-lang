@@ -34,56 +34,40 @@ struct vec2 {
 		echo(a)
 		
 		self.x /= 2.
-		self.y /= 2.
+		self.y /= 6.
 	}
 }
 
-// struct Glob {
-// 	var p: Planet
+struct SolSystem {
+	var planets: []
+	var nb_obj: int
+	var main_planet: Planet
 
-// 	new(p)
+	new(planets, nb_obj, main_planet)
 
-// 	fn get_p() {
-// 		return self.p
-// 	}
-// }
-
-// struct Top {
-// 	var glob: Glob
-// 	new(glob)
-// }
-
-// fn get_8() -> int {
-// 	return 8
-// }
+	fn get_main() -> Planett {
+		return self.main_planet
+	}
+}
 
 var satelites: [] = [Sat(vec2(56, 89)), Sat(vec2(-5, 999)), Sat(vec2(-54765, 10345))]
-
-// var mars = Planet(vec2(1, 2), 50, [])
 var mars = Planet(vec2(1, 2), 50, satelites)
-// // var glob = Glob(mars)
-// var top = Top(glob)
+var sol_sys = SolSystem([mars], 4, mars)
 
-// echo()
-// var a = top.glob.p.pos.add(1, 3)
-// echo(a)
-// echo()
-// echo(top.glob.p.pos.add(1, 3))
+fn get_sat() {
+	return satelites
+}
 
-// echo(top.glob.p.sat)
-// echo()
-// echo()
 
-// var t1 = top.glob.p.sat[2]
-// echo(t1)
-// var t1 = top.glob.p.sat[0].orbite.x
-// var t1 = top.glob.p
-// echo()
-// echo()
-// echo()
-// echo()
-// echo()
-// echo(t1)
-// var t3 = top.glob.p.sat[0].orbite.add()
-// echo(t2)
-// echo(t3)
+struct TestConstruct {
+	var x, y: int
+	var z: vec2
+
+	new(x, y, z) {
+		self.x += 20
+		self.z.x -= 8
+	}
+}
+
+var test_construct = TestConstruct(5, 10, vec2(68, 100))
+echo(test_construct)
