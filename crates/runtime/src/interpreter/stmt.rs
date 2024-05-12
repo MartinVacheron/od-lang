@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use colored::*;
 
 use super::{Interpreter, InterpreterError};
@@ -15,7 +18,21 @@ impl Interpreter {
                 constant,
                 var_type,
             } => {
-                let declaration_value = self.evaluate(value, env)?;
+                // TODO: If it is a structure that we are assigning, we must first
+                // disconnect the members between the instances
+                let mut declaration_value = self.evaluate(value, env)?;
+
+                declaration_value = match declaration_value {
+                    RuntimeVal::Structure { prototype, members } => {
+                        println!("\nDuplicating members to break link");
+                        
+                        RuntimeVal::Structure {
+                            prototype: prototype.clone(),
+                            members: Rc::new(RefCell::new(members.borrow().clone()))
+                        }
+                    },
+                    _ => declaration_value
+                };
 
                 // We declare the variable
                 env.declare_var(name, declaration_value, constant, var_type)

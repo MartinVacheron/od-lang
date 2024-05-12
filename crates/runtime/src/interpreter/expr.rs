@@ -59,8 +59,22 @@ impl Interpreter {
             // TODO: Test
             // TODO: use new memcall parser
             ExpressionKind::VarAssignment { assigne, value } => {
-                let assignment_value = self.evaluate(*value, env)?;
+                let mut assignment_value = self.evaluate(*value, env)?;
                 println!("\nIn var assign, value evaluated to: {:?}", assignment_value);
+
+                // TODO: if it is a structure, we have to break the link of the Rc otherwise they
+                // share same data as a pointer
+                assignment_value = match assignment_value {
+                    RuntimeVal::Structure { prototype, members } => {
+                        println!("\nDuplicating members to break link");
+                        
+                        RuntimeVal::Structure {
+                            prototype: prototype.clone(),
+                            members: Rc::new(RefCell::new(members.borrow().clone()))
+                        }
+                    },
+                    _ => assignment_value
+                };
 
                 match *assigne {
                     ExpressionKind::Identifier { symbol } => {
@@ -75,9 +89,29 @@ impl Interpreter {
                         // Cloning for same reason than above
                         // env.assign_struct_var(props, AssignType::Replace(assignment_value.clone()))?;
 
-                        self.resolve_assign_mem_call(&member, &property, env, Some(assignment_value.clone()))?;
+
+                        // TEST: 
+                        let (members, proto) = self.get_member_call_last_struct(&*member, env)?;
+                        let mut tmp_env = Env::new(Some(env));
+                        tmp_env.create_self(proto.clone(), members.clone())?;
+
+                        match &*property {
+                            ExpressionKind::Identifier { symbol } => {
+                                members.borrow_mut().insert(symbol.clone(), assignment_value.clone()).expect("Member not found on struct");
+                            }
+                            _ => panic!("Just trying for now")
+                        }
+
+
+
+
+
+
+                        // self.resolve_assign_mem_call(&member, &property, env, Some(assignment_value.clone()))?;
+
                         Ok(assignment_value)
                     }
+                    // TODO: use lookup_mut_var and to the replacement here?
                     ExpressionKind::ArrayCall { name, index } => {
                         // All cases
                         match index {
@@ -443,7 +477,6 @@ impl Interpreter {
         let first_var: &mut RuntimeVal;
         let mut tmp_mem: ExpressionKind = member.clone();
 
-        println!("Member when enter: {:#?}", member);
 
         loop {
             match tmp_mem {
@@ -463,9 +496,6 @@ impl Interpreter {
         }
         
         all_sub_mem.reverse();
-
-        println!("First: {:#?}", first_var);
-        println!("Chain: {:#?}", all_sub_mem);
 
         let mut final_proto;
         let mut final_members;
@@ -651,6 +681,7 @@ impl Interpreter {
                     first_var = env.lookup_mut_var(&symbol)?;
                     break
                 }
+                // TODO: Separate in own fn like 'get_first_elem(tmp_mem)
                 // Same for array, ex: foo[0].bar....
                 ExpressionKind::ArrayCall { name, index } => {
                     let idx = match index {        
