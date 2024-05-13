@@ -1,5 +1,8 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{
+    HashMap,
+    hash_map::Entry::Occupied
+};
 use std::rc::Rc;
 
 use super::InterpreterError;
@@ -57,24 +60,17 @@ impl Interpreter {
                     .map_err(|e| InterpreterError::Evaluation(e.to_string()))?)
             }
             // TODO: Test
-            // TODO: use new memcall parser
             ExpressionKind::VarAssignment { assigne, value } => {
                 let mut assignment_value = self.evaluate(*value, env)?;
-                println!("\nIn var assign, value evaluated to: {:?}", assignment_value);
 
-                // TODO: if it is a structure, we have to break the link of the Rc otherwise they
+                // If it is a structure, we have to break the link of the Rc otherwise they
                 // share same data as a pointer
-                assignment_value = match assignment_value {
-                    RuntimeVal::Structure { prototype, members } => {
-                        println!("\nDuplicating members to break link");
-                        
-                        RuntimeVal::Structure {
+                if let RuntimeVal::Structure { prototype, members } = assignment_value {
+                    assignment_value = RuntimeVal::Structure {
                             prototype: prototype.clone(),
                             members: Rc::new(RefCell::new(members.borrow().clone()))
-                        }
-                    },
-                    _ => assignment_value
-                };
+                    };
+                }
 
                 match *assigne {
                     ExpressionKind::Identifier { symbol } => {
@@ -84,76 +80,65 @@ impl Interpreter {
                         Ok(assignment_value)
                     }
                     ExpressionKind::MemberCall { member, property } => {
-                        // let props = parse_mem_call(&*member, &*property)?;
-                        
-                        // Cloning for same reason than above
-                        // env.assign_struct_var(props, AssignType::Replace(assignment_value.clone()))?;
-
-
-                        // TEST: 
                         let (members, proto) = self.get_member_call_last_struct(&*member, env)?;
-                        let mut tmp_env = Env::new(Some(env));
-                        tmp_env.create_self(proto.clone(), members.clone())?;
+                        
+                        // Here, we clone the value, no need to return a reference
+                        let assign_clone = assignment_value.clone();
 
                         match &*property {
                             ExpressionKind::Identifier { symbol } => {
-                                members.borrow_mut().insert(symbol.clone(), assignment_value.clone()).expect("Member not found on struct");
+                                match members.borrow_mut().entry(symbol.clone()) {
+                                    Occupied(mut e) => { e.insert(assignment_value); },
+                                    _ => return Err(InterpreterError::StructMemberNotFound(proto.name.clone(), symbol.clone()))
+                                }
                             }
-                            _ => panic!("Just trying for now")
+                            ExpressionKind::ArrayCall { name, index } => {
+                                let mut tmp_bor = members.borrow_mut();
+                                let rv = tmp_bor.get_mut(name).ok_or(InterpreterError::StructMemberNotFound(proto.name.clone(), name.clone()) )?;
+
+                                let idx = self
+                                    .get_array_single_index(&index, env)
+                                    .map_err(|_| InterpreterError::ArraySliceAssign(name.clone()))?;
+
+                                match rv {
+                                    RuntimeVal::Array(arr) => {
+                                        arr.call("set", &[RuntimeVal::Int(idx), assignment_value])?;
+                                    }
+                                    _ => return Err(InterpreterError::NonArrayIndexing(name.clone()))
+                                }
+                            },
+                            _ => return Err(InterpreterError::WrongStructMemberAssignCall)
                         }
 
-
-
-
-
-
-                        // self.resolve_assign_mem_call(&member, &property, env, Some(assignment_value.clone()))?;
-
-                        Ok(assignment_value)
+                        Ok(assign_clone)
                     }
-                    // TODO: use lookup_mut_var and to the replacement here?
                     ExpressionKind::ArrayCall { name, index } => {
-                        // All cases
-                        match index {
-                            // Single index is the only supported assignment
-                            ArrayIndexing::Single(i) => {
-                                // Evaluate the index
-                                let id = self.evaluate(*i, env)?;
+                        let idx = self
+                            .get_array_single_index(&index, env)
+                            .map_err(|_| InterpreterError::ArraySliceAssign(name.clone()))?;
 
-                                env.assign_var(
-                                    &name,
-                                    AssignType::ArrayModification {
-                                        index: id,
-                                        value: assignment_value,
-                                    },
-                                )?;
+                        let rv = env.lookup_mut_var(&name)?;
+
+                        match rv {
+                            RuntimeVal::Array(arr) => {
+                                arr.call("set", &[RuntimeVal::Int(idx), assignment_value])?;
                             }
-                            // Else, error
-                            ArrayIndexing::Slice { .. } => {
-                                return Err(InterpreterError::ArraySliceAssign(name))
-                            }
+                            _ => return Err(InterpreterError::NonArrayIndexing(name.clone()))
                         }
 
                         Ok(RuntimeVal::Null)
                     }
-                    _ => Err(InterpreterError::NonLiteralAssigne(format!(
-                        "{:?}",
-                        assigne
-                    ))),
+                    _ => Err(InterpreterError::WrongStructMemberAssignCall),
                 }
             }
             ExpressionKind::MemberCall {
                 member,
                 property,
             } => {
-                // We check first that we are not just calling a method on an array because it has
-                // the same shape as the member calls like: arr.push(5)
-                // with 'arr' as member and 'push(5)' as property
-
+                // We resolve the member call to have the last element to then manage the property
                 let (members, proto) = self.get_member_call_last_struct(&*member, env)?;
 
                 let mut tmp_env = Env::new(Some(env));
-
                 tmp_env.create_self(proto.clone(), members.clone())?;
 
                 // Here, we clone the value, no need to return a reference
@@ -167,7 +152,7 @@ impl Interpreter {
                             .filter(|m| &m.name == name)
                             .collect::<Vec<&StructMember>>();
 
-                        let struct_fn = struct_fn.first().expect("Method not found");
+                        let struct_fn = struct_fn.first().ok_or(InterpreterError::StructFnNotFound(proto.name.clone(), name.clone()))?;
 
                         if let RuntimeVal::Function { args_and_type, body, return_stmt, return_type } = &struct_fn.value {
                             match self.execute_fn_in_env(
@@ -183,23 +168,33 @@ impl Interpreter {
                                 None => Ok(RuntimeVal::Null),
                             }
                         } else {
-                            panic!("Struct member not a fn")
+                            return Err(InterpreterError::FnCallOnNonFnMember(name.clone(), proto.name.clone()))
                         }
                     }
                     ExpressionKind::Identifier { symbol } => {
-                        Ok(members.borrow().get(symbol).expect("Member not found on struct").clone())
+                        Ok(
+                            members
+                                .borrow()
+                                .get(symbol)
+                                .ok_or(InterpreterError::StructMemberNotFound(proto.name.clone(), symbol.clone()))?
+                                .clone()
+                        )
                     }
                     ExpressionKind::ArrayCall { name, index } => {
-                        let rv = members.borrow().get(name).expect("Member not found on struct").clone();
+                        let rv = members
+                            .borrow()
+                            .get(name)
+                            .ok_or(InterpreterError::StructMemberNotFound(proto.name.clone(), name.clone()))?
+                            .clone();
 
                         match rv {
                             RuntimeVal::Array(_) => {
-                                self.evaluate_array_indexing(rv, index.clone(), env)
+                                self.evaluate_array_indexing(&name, rv, index.clone(), env)
                             }
-                            _ => panic!("Expected to get an array as member for array call")
+                            _ => Err(InterpreterError::NonArrayIndexing(name.clone()))
                         }
                     },
-                    _ => todo!("Can't be anything else than a function call on an identifier member expression")
+                    _ => Err(InterpreterError::WrongMemberTypeCall)
                 }
             }
             ExpressionKind::FunctionCall {
@@ -212,13 +207,19 @@ impl Interpreter {
                 // Temporary env of execution
                 let mut tmp_env = Env::new(Some(env));
 
+                /* 
+                   ---------------------
+                    |> Constructor call
+                   ---------------------
+                */
+
                 // We check if this is a structure that we are calling
                 let proto = env.lookup_struct_prototype(&name);
                 if let Ok(p) = proto {
                     return self.create_structure(p.clone(), args, &mut tmp_env)
                 }
 
-                let func = env.lookup_var(&name)?.clone();
+                let func = tmp_env.lookup_var(&name)?.clone();
 
                 match func {
                     // Native functions
@@ -235,6 +236,7 @@ impl Interpreter {
                         return_stmt,
                         return_type
                     } => {
+                    // TODO: check type returned
                         match self.execute_fn_in_env(
                             args_and_type,
                             args,
@@ -256,7 +258,7 @@ impl Interpreter {
                 // We evaluate array variable and index
                 let arr = env.lookup_var(&name)?.clone();
 
-                self.evaluate_array_indexing(arr, index, env)
+                self.evaluate_array_indexing(&name, arr, index, env)
             }
             ExpressionKind::EmptyStructLiteral { name } => {
                 let proto = env.lookup_struct_prototype(&name)?;
@@ -267,7 +269,14 @@ impl Interpreter {
     }
 
     // Evaluates an array call
-    fn evaluate_array_indexing(&self, array: RuntimeVal, index: ArrayIndexing, env: &mut Env) -> Result<RuntimeVal, InterpreterError> {
+    fn evaluate_array_indexing(
+        &self,
+        name: &String,
+        array: RuntimeVal,
+        index: ArrayIndexing,
+        env: &mut Env
+    ) -> Result<RuntimeVal, InterpreterError>
+    {
         // All cases
         match array {
             RuntimeVal::Array(mut arr) => {
@@ -279,7 +288,8 @@ impl Interpreter {
 
                         Ok(arr
                             .call("get", &vec![id])
-                            .map_err(|e| InterpreterError::ArrayGetFnCall(e))?)
+                            .map_err(|e| InterpreterError::ArrayGetFnCall(e))?
+                        )
                     }
                     // Indexing like: arr[:x], arr[2:], arr[2:4]
                     ArrayIndexing::Slice { start, end } => {
@@ -294,12 +304,13 @@ impl Interpreter {
 
                         Ok(arr
                             .call("get_slice", &vec![s, e])
-                            .map_err(|e| InterpreterError::ArrayGetFnCall(e))?)
+                            .map_err(|e| InterpreterError::ArrayGetFnCall(e))?
+                        )
                     }
                 }
             }
             // Not an array
-            _ => Err(InterpreterError::NonArrayIndexing),
+            _ => Err(InterpreterError::NonArrayIndexing(name.clone())),
         }
     }
 
@@ -437,9 +448,6 @@ impl Interpreter {
         )
     }
 
-
-    // TODO: Checker tous les 'clone'
-    // TODO: checker les 'todo!'
     // Hard to understand function. A member call has to be parsed in reverse order
     // The shape is:
     // Member: MemberCall {
@@ -460,200 +468,6 @@ impl Interpreter {
     //         symbol: "pos",
     //     },
     // }
-    // So we parse the member calls until the first identifier and go upward
-
-
-    // TODO: before entering this fn, be sure the prop is either a fn call or array call
-    fn resolve_assign_mem_call(
-        &self,
-        member: &ExpressionKind,
-        property: &ExpressionKind,
-        env: &mut Env,
-        out: Option<RuntimeVal>
-    ) -> Result<RuntimeVal, InterpreterError>
-    {
-        let mut all_sub_mem: Vec<ExpressionKind> = vec![];
-
-        let first_var: &mut RuntimeVal;
-        let mut tmp_mem: ExpressionKind = member.clone();
-
-
-        loop {
-            match tmp_mem {
-                // While the member is a sub member call, we continue
-                ExpressionKind::MemberCall { member, property } => {
-                    tmp_mem = *member;
-                    // And we add the property to the list to resolve later
-                    all_sub_mem.push(*property);
-                }
-                // If member is an identifier, we reached the end, ex: foo.bar....
-                ExpressionKind::Identifier { ref symbol } => {
-                    first_var = env.lookup_mut_var(&symbol)?;
-                    break
-                }
-                _ => panic!("Impossible to be here")
-            }
-        }
-        
-        all_sub_mem.reverse();
-
-        let mut final_proto;
-        let mut final_members;
-
-        match first_var {
-            RuntimeVal::Structure { prototype, members } => {
-                final_proto = prototype.clone();
-                final_members = members.clone();
-            },
-            _ => panic!("impossible to be here")
-        };
-
-        for sub_mem in all_sub_mem {
-            match sub_mem {
-                ExpressionKind::Identifier { symbol } => {
-                    if let RuntimeVal::Structure { prototype, members } = final_members.clone().borrow().get(&symbol).unwrap() {
-                        final_proto = prototype.clone();
-                        final_members = members.clone();
-                    } else {
-                        todo!("Not a struct member call chain")
-                    }
-                }
-                _ => panic!("impossible to be here")
-            }
-        }
-
-        println!("Final member: {:?}", final_members);
-
-        // 'final borrow' is the RefCell of members of last struct of chain
-        match property {
-            ExpressionKind::FunctionCall { name, args: args_expr } => {
-                let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
-
-                // We get the function signature in the members
-                // TODO: create self
-                println!("In member call resolve, fn call on struct, self create");
-                
-                let mut tmp_env = Env::new(Some(env));
-                tmp_env.create_self(final_proto.clone(), final_members.clone())?;
-
-                // drop(final_members);
-
-                // FIXME: Double borrow with the execute in env after because of 'self' create...
-                // To fix, we have to change the assignment process so its not the value that does
-                // it but same fn as this one, so one owner?
-                // FIXME: extract args and type and stuff or panic and then call execute to live the borrow of if let
-                if let RuntimeVal::Function { args_and_type, body, return_stmt, .. } = final_members.as_ref().borrow().get(name).unwrap() {
-                    println!("In member call resolve, fn call on struct");
-
-                    match self.execute_fn_in_env(args_and_type.clone(), args, name.clone(), body.clone(), return_stmt.clone(), &mut tmp_env)? {
-                        Some(r) => Ok(r),
-                        None => Ok(RuntimeVal::Null)
-                    }
-                // TODO: support fn call on arrays
-                } else {
-                    panic!("Function not found on structure fn member call")
-                }
-            }
-            // If property at the end, we could be assigning a value
-            ExpressionKind::Identifier { symbol } => {
-                match out {
-                    Some(v) => {
-                        println!("Nb borrows: {}", Rc::strong_count(&final_members));
-
-                        println!("Env self var: {:?}", env.lookup_var(&"self".into())?);
-
-                        // final_members.borrow_mut().insert(symbol.clone(), v);
-
-                        env.assign_to_self(symbol, v);
-                        Ok(RuntimeVal::Null)
-                    }
-                    None => Ok(final_members.borrow().get(symbol).unwrap().clone())
-                }
-            }
-            _ => panic!("Property called is neither a fn or member: {:?}", property)
-        }
-
-        // match property {
-        //     ExpressionKind::FunctionCall { name, args: args_expr } => {
-        //         match final_members.borrow_mut().get_mut(name).unwrap() {
-        //             RuntimeVal::Structure { prototype, members } => {
-        //                 if let RuntimeVal::Function {
-        //                     args_and_type,
-        //                     body,
-        //                     return_stmt,
-        //                     return_type
-        //                 } = members.borrow().get(name).unwrap()
-        //                 {
-        //                     let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
-
-        //                     match self.execute_fn_in_env(args_and_type.clone(), args, name.clone(), body.clone(), return_stmt.clone(), env)? {
-        //                         Some(r) => Ok(r),
-        //                         None => Ok(RuntimeVal::Null)
-        //                     }
-        //                 } else { panic!("flemme") }
-        //             }
-        //             RuntimeVal::Array(arr) => {
-        //                 // We evaluate each of the argument
-        //                 let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
-
-        //                 Ok(arr.call(name.as_str(), args.as_slice())?)
-        //             }
-        //             _ => panic!("Non struct or array member fn call")
-        //         }
-        //     }
-        //     ExpressionKind::Identifier { symbol } => {
-        //         Ok(final_members.borrow().get(symbol).unwrap().clone())
-        //     }
-        //     _ => panic!("No more choices for: {:?}", property)
-        // }
-        
-
-        // if let ExpressionKind::Identifier { symbol } = last_name {
-        //     let mut bor = final_members.borrow_mut();
-        //     let last_mem = bor.get_mut(&symbol).unwrap();
-
-        // match last_mem {
-        //     RuntimeVal::Structure { prototype, members } => {
-        //         match property {
-        //             ExpressionKind::FunctionCall { name, args: args_expr } => {
-        //                 if let RuntimeVal::Function {
-        //                     args_and_type,
-        //                     body,
-        //                     return_stmt,
-        //                     return_type
-        //                 } = members.borrow().get(name).unwrap()
-        //                 {
-        //                     let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
-
-        //                     match self.execute_fn_in_env(args_and_type.clone(), args, name.clone(), body.clone(), return_stmt.clone(), env)? {
-        //                         Some(r) => Ok(r),
-        //                         None => Ok(RuntimeVal::Null)
-        //                     }
-        //                 } else { panic!("Not a function") }
-        //             }
-        //             _ => panic!("Can't be anything else")
-        //         }
-        //     }
-        //     RuntimeVal::Array(arr) => {
-        //         match property {
-        //             ExpressionKind::FunctionCall { name, args: args_expr } => {
-        //                 // We evaluate each of the argument
-        //                 let args = self.evaluate_fn_args_value(args_expr.clone(), env)?;
-
-        //                 Ok(arr.call(name.as_str(), args.as_slice())?)
-        //             }
-        //             _ => Err(InterpreterError::ArrayNonMethodCall)
-        //         }
-        //     }
-        //     _ => panic!("Last mem not a struct")
-        // }
-        // }
-        // else { panic!("Last sub member not an identifier") }
-    }
-
-    
-    
-    // TEST: returns a Rc<RefCell<>> of last member call members
     fn get_member_call_last_struct(
         &self,
         member: &ExpressionKind,
@@ -663,9 +477,9 @@ impl Interpreter {
             Rc<StructPrototype>
         ), InterpreterError>
     {
+        let first_var: &mut RuntimeVal;
         let mut all_sub_mem: Vec<ExpressionKind> = vec![];
 
-        let first_var: &mut RuntimeVal;
         let mut tmp_mem: ExpressionKind = member.clone();
 
         loop {
@@ -676,43 +490,15 @@ impl Interpreter {
                     // And we add the property to the list to resolve later
                     all_sub_mem.push(*property);
                 }
-                // If member is an identifier, we reached the end, ex: foo.bar....
-                ExpressionKind::Identifier { ref symbol } => {
-                    first_var = env.lookup_mut_var(&symbol)?;
+                // Else, we extract the the first value and we quit the loop
+                _ => {
+                    first_var = self.get_mem_call_first_val(tmp_mem, env)?;
                     break
                 }
-                // TODO: Separate in own fn like 'get_first_elem(tmp_mem)
-                // Same for array, ex: foo[0].bar....
-                ExpressionKind::ArrayCall { name, index } => {
-                    let idx = match index {        
-                        ArrayIndexing::Single(idx) => {
-                            let index = self.evaluate(*idx, env)?;
-    
-                            match index {
-                                RuntimeVal::Int(i) => i,
-                                _ => panic!("Array index not an int")
-                            }
-                        },
-                        _ => panic!("Cannot slice array for member call")
-                    };
-
-                    match env.lookup_mut_var(&name)? {
-                        RuntimeVal::Array(arr) => {
-                            // Manages negative indexes
-                            let i = arr.check_and_get_index(idx)?;
-
-                            first_var = arr.val.get_mut(i).expect("Wrong array index")
-                        },
-                        _ => panic!("Expected to get an array as member for array call")
-                    }
-                    break
-                }
-                // TODO: support first elem as a fn call
-                ExpressionKind::FunctionCall { name, args } => todo!("First element of member being a function not implemented"),
-                _ => panic!("First member's type of member call not supported")
             }
         }
-        
+
+        // Members are in reverse order   
         all_sub_mem.reverse();
 
         let mut final_proto;
@@ -723,54 +509,96 @@ impl Interpreter {
                 final_proto = prototype.clone();
                 final_members = members.clone();
             },
-            _ => panic!("First var in member call is not a struct")
+            _ => return Err(InterpreterError::NonStructMemberCall)
         };
 
         for sub_mem in all_sub_mem {
             match sub_mem {
                 ExpressionKind::Identifier { symbol } => {
-                    if let RuntimeVal::Structure { prototype, members } = final_members.clone().borrow().get(&symbol).unwrap() {
-                        final_proto = prototype.clone();
-                        final_members = members.clone();
-                    } else {
-                        todo!("Not a struct member call chain in identifier property")
+                    match final_members
+                            .clone()
+                            .borrow()
+                            .get(&symbol)
+                            .ok_or(InterpreterError::StructMemberNotFound(final_proto.name.clone(), symbol.clone()))?
+                    {
+                        RuntimeVal::Structure { prototype, members } => {
+                            final_proto = prototype.clone();
+                            final_members = members.clone();
+                        }
+                        _ => return Err(InterpreterError::NonStructMemberCall)
                     }
                 }
                 ExpressionKind::ArrayCall { name, index } => {
-                    let idx = match index {        
-                        ArrayIndexing::Single(idx) => {
-                            let index = self.evaluate(*idx, env)?;
-    
-                            match index {
-                                RuntimeVal::Int(i) => i,
-                                _ => panic!("Array index not an int")
-                            }
-                        },
-                        _ => panic!("Cannot slice array for member call")
-                    };
+                    let idx = self.get_array_single_index(&index, env)?;
 
-                    match final_members.clone().borrow().get(&name).expect("Array member not found in member call") {
+                    match final_members
+                            .clone()
+                            .borrow_mut()
+                            .get_mut(&name)
+                            .ok_or(InterpreterError::StructMemberNotFound(final_proto.name.clone(), name.clone()))?
+                    {
                         RuntimeVal::Array(arr) => {
-                            let i = arr.check_and_get_index(idx)?;
-
-                            match arr.val.get(i).expect("Wrong array index") {
+                            match arr.call("get", &[RuntimeVal::Int(idx)])? {
                                 RuntimeVal::Structure { prototype, members } => {
                                     final_proto = prototype.clone();
                                     final_members = members.clone();
                                 },
-                                _ => panic!("Array call gave a non-struct object in member call")
+                                _ => return Err(InterpreterError::MemberCallArrayNoStructReturn(name.clone()))
                             }
                         },
-                        _ => panic!("Indexing non array object in member call")
+                        _ => return Err(InterpreterError::NonArrayIndexing(name.clone()))
                     }
                 }
                 ExpressionKind::FunctionCall { name, args } => todo!("Support function call in member call chains"),
-                _ => panic!("property access other than identifier or array call: {:?}", sub_mem)
+                _ => return Err(InterpreterError::WrongMemberTypeCall)
             }
         }
 
         Ok((final_members, final_proto))
     }
+
+    // Extracts the first value of a member call to start iterating over all the sub members
+    fn get_mem_call_first_val<'a>(&self, first_expr: ExpressionKind, env: &'a mut Env) -> Result<&'a mut RuntimeVal, InterpreterError> {
+        match first_expr {
+            // If member is an identifier, we reached the end, ex: foo.bar....
+            ExpressionKind::Identifier { ref symbol } => {
+                Ok(env.lookup_mut_var(&symbol)?)
+            }
+            // Same for array, ex: foo[0].bar....
+            ExpressionKind::ArrayCall { name, index } => {
+                let idx = self.get_array_single_index(&index, env)?;
+
+                match env.lookup_mut_var(&name)? {
+                    RuntimeVal::Array(arr) => {
+                        // Manages negative indexes
+                        let i = arr.check_and_get_index(idx)?;
+
+                        Ok(arr.val.get_mut(i).ok_or(InterpreterError::ArrayElemNotFound(name, i))?)
+                    },
+                    _ => Err(InterpreterError::NonArrayIndexing(name.clone()))
+                }
+            }
+            // TODO: support first elem as a fn call
+            ExpressionKind::FunctionCall { name, args } => todo!("First element of member being a function not implemented"),
+            _ => Err(InterpreterError::WrongFirstMemberTypeCall)
+        }
+    }
+
+    // Get the array index asked only if it's a single value, no slice
+    fn get_array_single_index(&self, index: &ArrayIndexing, env: &mut Env) -> Result<i64, InterpreterError> {
+        match index {        
+            ArrayIndexing::Single(idx) => {
+                let index = self.evaluate(*idx.clone(), env)?;
+
+                match index {
+                    RuntimeVal::Int(i) => Ok(i),
+                    _ => Err(InterpreterError::NonIntArrayIndex)
+                }
+            },
+            _ => Err(InterpreterError::ArraySliceMemCall)
+        }
+    }
+
     
     fn evaluate_fn_args_value(
         &self,
@@ -1061,7 +889,7 @@ mod tests {
         );
     }
 
-    const member_call_code: &str = "
+    const MEMBER_CALL_CODE: &str = "
         struct Planet {
             var pos: vec2
             var mass: real
@@ -1255,7 +1083,7 @@ mod tests {
         let mut lexer = Lexer::default();
         let mut parser = Parser::default();
 
-        lexer.tokenize(member_call_code.to_string()).unwrap();
+        lexer.tokenize(MEMBER_CALL_CODE.to_string()).unwrap();
         parser.build_ast(lexer.tokens.clone()).unwrap();
 
         let interp = Interpreter {};
@@ -1280,7 +1108,7 @@ mod tests {
         let mut lexer = Lexer::default();
         let mut parser = Parser::default();
 
-        lexer.tokenize(member_call_code.to_string()).unwrap();
+        lexer.tokenize(MEMBER_CALL_CODE.to_string()).unwrap();
         parser.build_ast(lexer.tokens.clone()).unwrap();
 
         let interp = Interpreter {};
@@ -1319,7 +1147,7 @@ mod tests {
         let mut lexer = Lexer::default();
         let mut parser = Parser::default();
 
-        lexer.tokenize(member_call_code.to_string()).unwrap();
+        lexer.tokenize(MEMBER_CALL_CODE.to_string()).unwrap();
         parser.build_ast(lexer.tokens.clone()).unwrap();
 
         let interp = Interpreter {};
@@ -1335,7 +1163,7 @@ mod tests {
 
         assert_eq!(
             interp.execute_program(parser.ast_nodes.clone(), &mut env).unwrap(),
-            RuntimeVal::Real(7.)
+            RuntimeVal::Real(17.)
         );
     }
 
@@ -1344,7 +1172,7 @@ mod tests {
         let mut lexer = Lexer::default();
         let mut parser = Parser::default();
 
-        lexer.tokenize(member_call_code.to_string()).unwrap();
+        lexer.tokenize(MEMBER_CALL_CODE.to_string()).unwrap();
         parser.build_ast(lexer.tokens.clone()).unwrap();
 
         let interp = Interpreter {};
@@ -1374,7 +1202,7 @@ mod tests {
         let mut lexer = Lexer::default();
         let mut parser = Parser::default();
 
-        lexer.tokenize(member_call_code.to_string()).unwrap();
+        lexer.tokenize(MEMBER_CALL_CODE.to_string()).unwrap();
         parser.build_ast(lexer.tokens.clone()).unwrap();
 
         let interp = Interpreter {};
@@ -1393,7 +1221,7 @@ mod tests {
 
         assert_eq!(
             interp.execute_program(parser.ast_nodes.clone(), &mut env).unwrap(),
-            RuntimeVal::Real(0.5)
+            RuntimeVal::Real(5.5)
         );
 
         let add_code = "sol_sys.main_planet.pos.y";
@@ -1412,7 +1240,7 @@ mod tests {
         let mut lexer = Lexer::default();
         let mut parser = Parser::default();
 
-        lexer.tokenize(member_call_code.to_string()).unwrap();
+        lexer.tokenize(MEMBER_CALL_CODE.to_string()).unwrap();
         parser.build_ast(lexer.tokens.clone()).unwrap();
 
         let interp = Interpreter {};
@@ -1437,7 +1265,7 @@ mod tests {
         let mut lexer = Lexer::default();
         let mut parser = Parser::default();
 
-        lexer.tokenize(member_call_code.to_string()).unwrap();
+        lexer.tokenize(MEMBER_CALL_CODE.to_string()).unwrap();
         parser.build_ast(lexer.tokens.clone()).unwrap();
 
         let interp = Interpreter {};

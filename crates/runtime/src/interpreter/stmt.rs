@@ -18,21 +18,18 @@ impl Interpreter {
                 constant,
                 var_type,
             } => {
-                // TODO: If it is a structure that we are assigning, we must first
-                // disconnect the members between the instances
+                // We get declaration value
                 let mut declaration_value = self.evaluate(value, env)?;
 
-                declaration_value = match declaration_value {
-                    RuntimeVal::Structure { prototype, members } => {
-                        println!("\nDuplicating members to break link");
-                        
-                        RuntimeVal::Structure {
+                // If this is structure that we assign, we create new members otherwise we point
+                // to the other structure, like a pointer
+                // TODO: test
+                if let RuntimeVal::Structure { prototype, members } = declaration_value {
+                    declaration_value = RuntimeVal::Structure {
                             prototype: prototype.clone(),
                             members: Rc::new(RefCell::new(members.borrow().clone()))
                         }
-                    },
-                    _ => declaration_value
-                };
+                }
 
                 // We declare the variable
                 env.declare_var(name, declaration_value, constant, var_type)

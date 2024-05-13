@@ -14,18 +14,9 @@ pub enum InterpreterError {
     #[error("{} during variable declaration in: {0}", "Error".red().bold())]
     VarDeclaration(String),
 
-    #[error("{} while assigning value to variable: {0}. Assigne must be a variable", "Error".red().bold())]
-    NonLiteralAssigne(String),
-
     // Structures
     #[error("{} during structure declaration in: {0}", "Error".red().bold())]
     StructDeclaration(String),
-
-    #[error("{} during structure -{0}- member call: {1}", "Error".red().bold())]
-    WrongStructMemberCall(String, String),
-
-    #[error("{} during member call: member has to be either a structure or an identifier", "Error".red().bold())]
-    WrongStructMemberTypeCall,
 
     #[error("{} during structure creation -{0}-: {1}", "Error".red().bold())]
     StructCreation(String, String),
@@ -39,8 +30,11 @@ pub enum InterpreterError {
     #[error("{} during structure creation -{0}-: {1}", "Error".red().bold())]
     SelfInConstructor(String, String),
     
-    #[error("{} during structure member access: structure -{0}- dosen't have member -{1}-", "Error".red().bold())]
-    WrongStructMember(String, String),
+    #[error("{} during structure member access: structure -{0}- doesn't have member -{1}-", "Error".red().bold())]
+    StructMemberNotFound(String, String),
+
+    #[error("{} during structure function call: structure -{0}- doesn't have function -{1}-", "Error".red().bold())]
+    StructFnNotFound(String, String),
 
     // Functions
     #[error("{} during function evaluation: {0}", "Error".red().bold())]
@@ -56,8 +50,11 @@ pub enum InterpreterError {
     NonFunctionCall(String),
 
     // Arrays
-    #[error("{} indexing non array variable.", "Error".red().bold())]
-    NonArrayIndexing,
+    #[error("{} indexing non array variable -{0}-.", "Error".red().bold())]
+    NonArrayIndexing(String),
+    
+    #[error("{} while indexing array: index is not an 'int'", "Error".red().bold())]
+    NonIntArrayIndex,
 
     #[error("{} during array creation: all elements must be of same type.", "Error".red().bold())]
     ArrayElemDiffType,
@@ -70,9 +67,31 @@ pub enum InterpreterError {
 
     #[error("{} during array assignment -{0}-, slice indexing is not allowed in assignment, only in expressions", "Error".red().bold())]
     ArraySliceAssign(String),
-    
-    #[error("{} during method call on array, non existing method call", "Error".red().bold())]
-    ArrayNonMethodCall,
+
+    #[error("{} during member call, slice indexing is not allowed when chaining expressions", "Error".red().bold())]
+    ArraySliceMemCall,
+
+    #[error("{} while indexing array -{0}-, element {1} not found", "Error".red().bold())]
+    ArrayElemNotFound(String, usize),
+
+    // Member call
+    #[error("{} during member call: member has to be either a structure, a function or an identifier", "Error".red().bold())]
+    WrongMemberTypeCall,
+
+    #[error("{} during member call: the first member has to be either a structure or an identifier", "Error".red().bold())]
+    WrongFirstMemberTypeCall,
+
+    #[error("{} during member call assignment: member has to be either a structure or an identifier", "Error".red().bold())]
+    WrongStructMemberAssignCall,
+
+    #[error("{} during function call: member -{0}- of structure -{1}- is not a function", "Error".red().bold())]
+    FnCallOnNonFnMember(String, String),
+
+    #[error("{} during member call: variable -{0}- is not a structure", "Error".red().bold())]
+    NonStructMemberCall,
+
+    #[error("{} during member call: array call of -{0}- dosen't return a structure", "Error".red().bold())]
+    MemberCallArrayNoStructReturn(String),
 
     // Types
     #[error("{} argument: -{0}-, found wrong type: -{1}-.", "Error".red().bold())]

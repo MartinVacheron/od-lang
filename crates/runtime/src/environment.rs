@@ -245,42 +245,6 @@ impl<'a> Env<'a> {
         }
     }
 
-    pub fn assign_to_self(&mut self, member: &String, value: RuntimeVal) {
-        if let Occupied(mut e) = self.vars.entry("self".into()) {
-            if let RuntimeVal::Structure { prototype, members } = e.get_mut() {
-                let _ = members.borrow_mut().insert(member.clone(), value);
-            }
-        }
-    }
-
-    // Assign a new value to an existing var that is a sub member (case of struct)
-    pub fn assign_struct_var(
-        &mut self,
-        mut properties: Vec<String>,
-        assign_type: AssignType,
-    ) -> Result<(), EnvError> {
-        // We extract variable name
-        let name = properties.remove(0);
-
-        // If it is constant, error
-        if self.constants.contains(&name) {
-            return Err(EnvError::AssignToConst(name));
-        }
-
-        // If variable exists
-        if let Occupied(mut e) = self.vars.entry(name.clone()) {
-            // We get it
-            let val = e.get_mut();
-
-            // We assign the value to it
-            val.assign_sub_member(&mut properties, assign_type)?;
-
-            Ok(())
-        } else {
-            Err(EnvError::AssignToUndeclared(name.clone()))
-        }
-    }
-
     // Recursivly check the parent environment to find variable declaration
     fn resolve(&self, name: &String, kind: EnvElem) -> Result<&Env, EnvError> {
         match kind {

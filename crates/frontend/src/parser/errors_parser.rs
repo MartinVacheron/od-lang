@@ -60,26 +60,11 @@ There are different ways to declare variables:
     #[error("{} while parsing structure declaration. Expected '}}' after structure name declaration.", "Error".red().bold())]
     MissingStructCloseBrace,
 
-    #[error("{} while parsing constructor: {0}", "Error".red().bold())]
-    ConstructorError(String),
-
     #[error("{} while parsing structure declaration. Only one constructor declaration is allowed", "Error".red().bold())]
     MultipleConstructor,
 
-    #[error("{} while parsing structure declaration. All variable must be identifier in the constructor, not expression", "Error".red().bold())]
-    NonIdentifierVarNameInConstructor,
-
     #[error("{} while parsing structure declaration. All constant members must be declared in the constructor.", "Error".red().bold())]
     MissingConstMemberInConstructor,
-
-    #[error("{} while parsing structure declaration. The constructor can't return a value.", "Error".red().bold())]
-    ReturnInConstructor,
-
-    #[error("{} while parsing structure creation: {0}", "Error".red().bold())]
-    StructCreation(String),
-
-    #[error("{} while parsing structure creation: expected structure name after 'new' keyword", "Error".red().bold())]
-    MissingStructIdentifier,
 
     #[error("{} while parsing structure creation: the constructor can't return anything. Remove '-> <type>'", "Error".red().bold())]
     ConstructorWithType,

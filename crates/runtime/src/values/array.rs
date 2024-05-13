@@ -156,7 +156,7 @@ impl ArrayType {
         // If index is < 0, we convert it to fetch from the bottom
         // Ex: a = [1, 2, 3, 4]     len() = 4
         // a[-1] <=> a[3] <=> a[len() + -1]
-        // a[-2] <=> a[2] <=> a[len() + -1]
+        // a[-2] <=> a[2] <=> a[len() + -2]
         let id = if idx >= 0 { idx } else { self.val.len() as i64 + idx };
 
         // Out of bound array access. If still < 0  after remaping, out too
