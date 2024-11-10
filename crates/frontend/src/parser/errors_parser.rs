@@ -66,6 +66,9 @@ There are different ways to declare variables:
     #[error("{} while parsing structure declaration. All constant members must be declared in the constructor.", "Error".red().bold())]
     MissingConstMemberInConstructor,
 
+    #[error("{} while parsing structure declaration: can't use 'fn' keyword with constructor method 'new'", "Error".red().bold())]
+    FnKwWithNew,
+
     #[error("{} while parsing structure creation: the constructor can't return anything. Remove '-> <type>'", "Error".red().bold())]
     ConstructorWithType,
 

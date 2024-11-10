@@ -88,7 +88,7 @@ pub enum InterpreterError {
     FnCallOnNonFnMember(String, String),
 
     #[error("{} during member call: variable -{0}- is not a structure", "Error".red().bold())]
-    NonStructMemberCall,
+    NonStructMemberCall(String),
 
     #[error("{} during member call: array call of -{0}- dosen't return a structure", "Error".red().bold())]
     MemberCallArrayNoStructReturn(String),

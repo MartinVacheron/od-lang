@@ -1,4 +1,5 @@
-use std::cell::RefCell;
+use std::borrow::BorrowMut;
+use std::cell::{RefCell, RefMut};
 use std::collections::{
     HashMap,
     hash_map::Entry::Occupied
@@ -6,6 +7,7 @@ use std::collections::{
 use std::rc::Rc;
 
 use super::InterpreterError;
+use crate::environment::MemberAccess;
 use crate::frontend::ast::{ASTNodeKind, ArrayIndexing, ExpressionKind};
 use crate::values::{StructMember, StructPrototype};
 use crate::{
@@ -135,6 +137,32 @@ impl Interpreter {
                 member,
                 property,
             } => {
+                /*
+                
+                    |> Test
+                
+                 */
+                let obj = self.evaluate(*member.clone(), env)?;
+
+                match obj {
+                    RuntimeVal::StructTmp(tmp_str) => {
+                        tmp_str.members.borrow_mut().get(k)
+                    }
+                }
+
+                
+                /*
+                
+                    |> Test
+                
+                 */
+                let foo = self.get_member_call_chain(&*member, env);
+                println!("Test recurse: {:?}", foo);
+
+                println!("Found in env: {:?}", env.get_struct_sub_member(foo.unwrap()));
+
+
+
                 // We resolve the member call to have the last element to then manage the property
                 let (members, proto) = self.get_member_call_last_struct(&*member, env)?;
 
@@ -154,6 +182,7 @@ impl Interpreter {
 
                         let struct_fn = struct_fn.first().ok_or(InterpreterError::StructFnNotFound(proto.name.clone(), name.clone()))?;
 
+                        println!("\nBefore fn call on member call expr");
                         if let RuntimeVal::Function { args_and_type, body, return_stmt, return_type } = &struct_fn.value {
                             match self.execute_fn_in_env(
                                 args_and_type.clone(),
@@ -334,6 +363,7 @@ impl Interpreter {
         }
 
         // We declare the input arguments as variables
+        // TODO: add test
         for ((arg_name, arg_type), arg_val) in proto_args.into_iter().zip(fn_args) {
             // Check the types if it wasn't declare with 'any'
             // If type is 'any', we don't cast, variable can be anything
@@ -434,7 +464,6 @@ impl Interpreter {
                 })?;
 
                 for stmt in body {
-                    // println!("\nStmt in struct decl: {:?}", stmt);
                     let _ = self.interpret_node(stmt.clone(), env)?;
                 }
             }
@@ -478,6 +507,7 @@ impl Interpreter {
         ), InterpreterError>
     {
         let first_var: &mut RuntimeVal;
+        let first_var_name: String;
         let mut all_sub_mem: Vec<ExpressionKind> = vec![];
 
         let mut tmp_mem: ExpressionKind = member.clone();
@@ -492,11 +522,13 @@ impl Interpreter {
                 }
                 // Else, we extract the the first value and we quit the loop
                 _ => {
-                    first_var = self.get_mem_call_first_val(tmp_mem, env)?;
+                    (first_var, first_var_name) = self.get_mem_call_first_val(tmp_mem, env)?;
                     break
                 }
             }
         }
+
+        println!("\n\nFirst var name: {}, first var: {:?}", first_var_name, first_var);
 
         // Members are in reverse order   
         all_sub_mem.reverse();
@@ -509,8 +541,10 @@ impl Interpreter {
                 final_proto = prototype.clone();
                 final_members = members.clone();
             },
-            _ => return Err(InterpreterError::NonStructMemberCall)
+            _ => return Err(InterpreterError::NonStructMemberCall(first_var_name))
         };
+
+        println!("\nGot first var OK");
 
         for sub_mem in all_sub_mem {
             match sub_mem {
@@ -525,7 +559,7 @@ impl Interpreter {
                             final_proto = prototype.clone();
                             final_members = members.clone();
                         }
-                        _ => return Err(InterpreterError::NonStructMemberCall)
+                        _ => return Err(InterpreterError::NonStructMemberCall(first_var_name))
                     }
                 }
                 ExpressionKind::ArrayCall { name, index } => {
@@ -557,12 +591,19 @@ impl Interpreter {
         Ok((final_members, final_proto))
     }
 
+
+
     // Extracts the first value of a member call to start iterating over all the sub members
-    fn get_mem_call_first_val<'a>(&self, first_expr: ExpressionKind, env: &'a mut Env) -> Result<&'a mut RuntimeVal, InterpreterError> {
+    fn get_mem_call_first_val<'a>(
+        &self,
+        first_expr: ExpressionKind,
+        env: &'a mut Env
+    ) -> Result<(&'a mut RuntimeVal, String), InterpreterError>
+    {
         match first_expr {
             // If member is an identifier, we reached the end, ex: foo.bar....
             ExpressionKind::Identifier { ref symbol } => {
-                Ok(env.lookup_mut_var(&symbol)?)
+                Ok((env.lookup_mut_var(&symbol)?, symbol.clone()))
             }
             // Same for array, ex: foo[0].bar....
             ExpressionKind::ArrayCall { name, index } => {
@@ -573,7 +614,7 @@ impl Interpreter {
                         // Manages negative indexes
                         let i = arr.check_and_get_index(idx)?;
 
-                        Ok(arr.val.get_mut(i).ok_or(InterpreterError::ArrayElemNotFound(name, i))?)
+                        Ok((arr.val.get_mut(i).ok_or(InterpreterError::ArrayElemNotFound(name.clone(), i))?, name))
                     },
                     _ => Err(InterpreterError::NonArrayIndexing(name.clone()))
                 }
@@ -583,6 +624,42 @@ impl Interpreter {
             _ => Err(InterpreterError::WrongFirstMemberTypeCall)
         }
     }
+
+    /*
+    
+        |> Test
+
+    */
+    fn get_member_call_chain(&self, member: &ExpressionKind, env: &mut Env) -> Result<Vec<MemberAccess>, InterpreterError> {
+        match member {
+            // While the member is a sub member call, we continue
+            ExpressionKind::MemberCall { member, property } => {
+                let mut access = self.get_member_call_chain(&*member, env)?;
+
+                match &**property {
+                    ExpressionKind::Identifier { symbol } => {
+                        access.push(MemberAccess::Name(symbol.clone()));
+                        Ok(access)
+                    }
+                    ExpressionKind::ArrayCall { name, index } => {
+                        let idx = self.get_array_single_index(&index, env)?;
+                        access.push(MemberAccess::ArrayIndex(name.clone(), idx));
+
+                        Ok(access)
+                    }
+                    _ => panic!()
+                }
+            }
+            ExpressionKind::Identifier { symbol } => {
+                Ok(vec![MemberAccess::Name(symbol.clone())])
+            }
+            // Else, we extract the the first value and we quit the loop
+            _ => panic!()
+        }
+    }
+
+
+
 
     // Get the array index asked only if it's a single value, no slice
     fn get_array_single_index(&self, index: &ArrayIndexing, env: &mut Env) -> Result<i64, InterpreterError> {

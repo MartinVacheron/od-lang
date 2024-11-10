@@ -40,6 +40,12 @@ pub enum RuntimeVal {
         return_stmt: Option<ExpressionKind>,
         return_type: VarType,
     },
+    StructTmp(Rc<TestStruct>)
+}
+
+struct TestStruct {
+    prototype: Rc<StructPrototype>,
+    pub members: RefCell<HashMap<String, RuntimeVal>>
 }
 
 impl Debug for RuntimeVal {
@@ -63,6 +69,7 @@ impl Debug for RuntimeVal {
             ),
             RuntimeVal::NativeFunction { .. } => write!(f, "native function"),
             RuntimeVal::Function { .. } => write!(f, "function"),
+            RuntimeVal::StructTmp(..) => panic!()
         }
     }
 }
@@ -177,6 +184,7 @@ impl Display for RuntimeVal {
             },
             RuntimeVal::NativeFunction { .. } => write!(f, "native function"),
             RuntimeVal::Function { .. } => write!(f, "function"),
+            RuntimeVal::StructTmp(..) => panic!()
         }
     }
 }
@@ -241,6 +249,7 @@ impl RuntimeVal {
             RuntimeVal::PlaceholderStruct { prototype } => VarType::Struct(prototype.name.clone()),
             RuntimeVal::Function { return_type, .. } => return_type.clone(),
             RuntimeVal::NativeFunction { return_type, .. } => return_type.clone(),
+            RuntimeVal::StructTmp(..) => panic!()
         }
     }
 
@@ -301,6 +310,7 @@ impl RuntimeVal {
             _ => Err(ValueError::BinopOnFunction),
         }
     }
+
 
     // Fetch the sub member as far as it is and assign a new value
     // TODO: remove and replace by new functions in stmt
@@ -431,8 +441,6 @@ pub struct StructPrototype {
     pub name: String,
     pub members: Vec<StructMember>,
     pub constructor: Option<RuntimeVal>
-    // pub constructor_args: Option<Vec<(String, VarType)>>,
-    // pub constructor_body: Option<Vec<ASTNodeKind>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]

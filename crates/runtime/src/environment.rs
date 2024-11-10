@@ -1,4 +1,5 @@
 use colored::*;
+use std::cell::RefMut;
 use std::rc::Rc;
 use std::result::Result;
 use std::{
@@ -58,6 +59,12 @@ pub enum EnvError {
 enum EnvElem {
     Variable,
     StructPrototype,
+}
+
+#[derive(Debug)]
+pub enum MemberAccess {
+    Name(String),
+    ArrayIndex(String, i64)
 }
 
 pub fn create_global_env<'a>() -> Env<'a> {
@@ -390,6 +397,83 @@ impl<'a> Env<'a> {
 
         Ok(())
     }
+
+
+    /*
+    
+        |> Test
+    
+    */
+    pub fn get_struct_sub_member(&mut self, member_access: Vec<MemberAccess>) -> &RuntimeVal {
+        let mut last_var: &RuntimeVal = &RuntimeVal::Null;
+        
+        for access in member_access {
+            match access {
+                MemberAccess::Name(n) => {
+                    last_var = self.vars.get(&n).expect(format!("Not found for name: {}", n).as_str());
+                }
+                MemberAccess::ArrayIndex(n, i) => {
+                    let arr = self.vars.get(&n).expect(format!("Not found for name: {}, index: {}", n, i).as_str());
+
+                    if let RuntimeVal::Array(a) = arr {
+                        last_var = a.val.get(i as usize).unwrap();
+                    }
+                }
+            }
+        }
+
+        last_var
+    }
+
+    // pub fn get_struct_sub_member_recurs(&mut self, member_access: &Vec<MemberAccess>) -> &RuntimeVal {
+    //     let first_name = if let MemberAccess::Name(n) = &member_access[0] {
+    //         n
+    //     } else {
+    //         panic!()
+    //     };
+
+    //     let mut current_val = self.vars.get(first_name).unwrap();
+
+    //     // Iterate through the rest of the chain
+    //     for member in &member_access[1..] {
+    //         if let MemberAccess::Name(n) = member {
+    //             match current_val {
+    //                 RuntimeVal::Structure { members, .. } => {
+    //                     let members = members.borrow();
+    //                     current_val = members.get(n).unwrap();
+    //                 }
+    //                 _ => panic!(), // If current_val is not a Structure, return None
+    //             }
+    //         } else {
+    //             panic!()
+    //         }
+    //     }
+
+    //     current_val
+    // }
+
+    // fn recurse<'b>(&mut self, mut mem_access: Vec<MemberAccess>, val: RefMut<'b, HashMap<String, RuntimeVal>>) -> RefMut<'b, HashMap<String, RuntimeVal>> {
+    //     match mem_access.pop().unwrap() {
+    //         MemberAccess::Name(n) => {
+    //             if let RuntimeVal::Structure { prototype, members } = val.get(&n).unwrap() {
+    //                 // let var = members.borrow().get(&n).unwrap();
+
+    //                 if mem_access.len() == 0 {
+    //                     return members.borrow_mut()
+    //                 }
+                    
+    //                 return self.recurse(mem_access, members.borrow_mut())
+                    
+    //             } else {
+    //                 panic!()
+    //             }
+                
+    //         }
+    //         MemberAccess::ArrayIndex(n, i) => {
+    //             todo!()
+    //         }
+    //     }
+    // }
 }
 
 

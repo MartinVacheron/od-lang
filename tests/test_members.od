@@ -1,0 +1,110 @@
+struct vec2 {
+    var x, y: real
+    new(x, y)
+
+    fn move(amount: vec2) -> vec2 {
+        self.x += amount.x
+        self.y += amount.y
+
+        return vec2(self.x, self.y)
+    }
+}
+
+struct Plant {
+    var pos: vec2
+    var health: real
+    var water: int
+
+    new(pos, health, water)
+
+    fn water(amount: int) {
+        self.water += amount
+    }
+}
+
+struct AnimalChild {
+    var name: int
+    var hunger: real
+
+    new(name) {
+        self.hunger = 0
+    }
+
+    fn feed(amount: real) {
+        self.hunger += amount
+    }
+}
+
+struct Animal {
+    var name: int
+    var pos: vec2
+
+    var children: []Animal
+
+    new(name, pos)
+
+    fn add_child(child: AnimalChild) -> void {
+        self.children.push(child)
+    }
+
+    fn feed_child(id: int, amount: real) {
+        self.children[id].feed(amount)
+    }
+
+    fn move_child(id: int, x, y: real) -> vec2 {
+        self.children[id].pos.move(vec2(x, y))
+
+        return vec2(x, y)
+    }
+}
+
+struct Barn {
+    var pos: vec2
+    var animals: []Animals
+    
+    var nb_animals // int
+
+    new(pos, animals, nb: int) {
+        self.nb_animals = nb
+    }
+
+    fn print_name(id: int) {
+        echo(self.animals[id].name)
+    }
+}
+
+struct Farm {
+    var plants: []Plant
+    var barn: Barn
+
+    var nb_plants: int
+
+    new(plants, barn, nb) {
+        self.nb_plants = nb
+    }
+
+    fn get_nb_animals() -> int {
+        return self.barn.nb_animals
+    }
+
+    fn water_plants(amount) {
+        self.plants[0].water(amount)
+        self.plants[1].water(amount)
+    }
+}
+
+var plant1 = Plant(vec2(10, 12), 100, 20)
+var plant2 = Plant(vec2(-5, 8), 95., 50)
+
+var child1 = AnimalChild(12)
+var child2 = AnimalChild(5)
+var child3 = AnimalChild(9)
+
+var animal = Animal(111, vec2(56, 21))
+animal.add_child(child1)
+animal.add_child(child2)
+animal.add_child(child3)
+
+var barn = Barn(vec2(230, 140), [animal], 1)
+
+var farm = Farm([plant1, plant2], barn, 2)

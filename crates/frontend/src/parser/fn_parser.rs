@@ -31,6 +31,10 @@ impl Parser {
             token_expected = TokenKind::Identifier;
 
             let _ = self.expect_token(TokenKind::Fn)?;
+
+            if self.at().kind == TokenKind::New {
+                return Err(ParserError::FnKwWithNew)
+            }
         }
 
         // We get the function name
